@@ -1,0 +1,72 @@
+syntax = "proto3";
+
+option go_package = "imsystem/pb";
+package pb;
+import "net-packet.proto";
+
+message BroadcastReq{
+    NetPacket packet = 1;
+    NetRequest request = 2;
+    string content = 3;
+}
+
+message BroadcastRsp{
+    NetPacket packet = 1;
+    NetResponse response = 2;
+}
+
+message QueryReq{
+    NetPacket packet = 1;
+    NetRequest request = 2;
+}
+
+message QueryRsp{
+    NetPacket packet = 1;
+    NetResponse response = 2;
+    repeated string users = 3;
+}
+
+message RenameReq{
+    NetPacket packet = 1;
+    NetRequest request = 2;
+    string new_name = 3;
+}
+
+message RenameRsp{
+    NetPacket packet = 1;
+    NetResponse response = 2;
+    string new_name = 3;
+}
+
+message PrivateChatReq{
+    NetPacket packet = 1;
+    NetRequest request = 2;
+    string user = 3;
+    string content = 4;
+}
+
+message PrivateChatRsp{
+    NetPacket packet = 1;
+    NetResponse response = 2;
+}
+
+////////////////////
+
+message KickPush{
+    NetPacket packet = 1;
+    NetPush push = 2;
+}
+
+message BroadcastPush{
+    NetPacket packet = 1;
+    NetPush push = 2;
+    string user = 3;
+    string content = 4;
+}
+
+message PrivateChatPush{
+    NetPacket packet = 1;
+    NetPush push = 2;
+    string user = 3;
+    string content = 4;
+}

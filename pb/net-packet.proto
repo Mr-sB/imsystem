@@ -1,0 +1,100 @@
+syntax = "proto3";
+
+option go_package = "imsystem/pb";
+package pb;
+
+//协议类型
+enum ProtoType{
+    PROTO_TYPE_UNKNOWN = 0;
+    PROTO_TYPE_REQUEST = 1;
+    PROTO_TYPE_RESPONSE = 2;
+    PROTO_TYPE_PUSH = 3;
+}
+
+//请求/响应类型
+enum OpType{
+    OP_TYPE_UNKNOWN = 0;
+    OP_TYPE_HEARTBEAT = 1;
+    OP_TYPE_BROADCAST = 2;
+    OP_TYPE_QUERY = 3;
+    OP_TYPE_RENAME = 4;
+    OP_TYPE_PRIVATE_CHAT = 5;
+}
+
+//推送类型
+enum PushType{
+    PUSH_TYPE_UNKNOWN = 0;
+    PUSH_TYPE_KICK = 1;
+    PUSH_TYPE_BROADCAST = 2;
+    PUSH_TYPE_PRIVATE_CHAT = 3;
+}
+
+////////////////////
+
+//所有message都需要包含这个message为 1 字段
+message NetPacket{
+    int32 pid = 1;//消息唯一id
+    ProtoType proto_type = 2;
+}
+
+//用这个message去解析所有的bytes，然后根据pack再解析为具体的message
+//作为一个单独的message好解析所有的message，不然每个message都需要包含所有的NetPacket字段，难以书写
+message NetPacketBase{
+    NetPacket packet = 1;
+}
+
+////////////////////
+
+//所有的request都包含这个message为 2 字段
+message NetRequest{
+    OpType op_type = 1;
+}
+
+message NetRequestBase{
+    NetRequest request = 2;
+}
+
+// Example:
+// message RequestExample{
+//     NetPacket packet = 1;
+//     NetRequest request = 2;
+//     int32 data1 = 3;
+// }
+
+////////////////////
+
+//所有的rsponse都包含这个message为 2 字段
+message NetResponse{
+    OpType op_type = 1;
+    int32 code = 2;
+    string msg = 3;//code不为success时可能的提示消息
+}
+
+message NetResponseBase{
+    NetResponse response = 2;
+}
+
+// Example:
+// message ResponseExample{
+//     NetPacket packet = 1;
+//     NetResponse response = 2;
+//     int32 data1 = 3;
+// }
+
+////////////////////
+
+//所有的push都包含这个message为 2 字段
+message NetPush{
+    PushType push_type = 1;
+}
+
+message NetPushBase{
+    NetPush push = 2;
+}
+
+// Example:
+// message PushExample{
+//     NetPacket packet = 1;
+//     NetPush push = 2;
+//     int32 data1 = 3;
+// }
