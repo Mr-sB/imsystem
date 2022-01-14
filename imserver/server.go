@@ -72,7 +72,7 @@ func (s *Server) UserOffline(user *User) {
 
 	//下线广播
 	s.Broadcast(&pb.BroadcastPush{
-		Packet:  protopack.NewNetPushPacket(user.GetPid()),
+		Packet:  protopack.NewNetPushPacket(),
 		Push:    protopack.NewNetPush(pb.PushType_PUSH_TYPE_BROADCAST),
 		User:    user.String(),
 		Content: "下线",
@@ -110,7 +110,7 @@ func (s *Server) PrivateChat(user *User, toUserName string, content string) erro
 		return errors.New("查无此人:" + toUserName)
 	}
 	bytes, _ := protopack.Encode(&pb.PrivateChatPush{
-		Packet:  protopack.NewNetPushPacket(user.GetPid()),
+		Packet:  protopack.NewNetPushPacket(),
 		Push:    protopack.NewNetPush(pb.PushType_PUSH_TYPE_PRIVATE_CHAT),
 		User:    user.String(),
 		Content: content,
@@ -127,7 +127,7 @@ func (s *Server) userOnline(user *User) {
 	user.Online()
 	//上线广播
 	s.Broadcast(&pb.BroadcastPush{
-		Packet:  protopack.NewNetPushPacket(user.GetPid()),
+		Packet:  protopack.NewNetPushPacket(),
 		Push:    protopack.NewNetPush(pb.PushType_PUSH_TYPE_BROADCAST),
 		User:    user.String(),
 		Content: "上线",

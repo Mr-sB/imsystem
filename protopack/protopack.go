@@ -150,23 +150,22 @@ func pushUnmarshal(pushBase *pb.NetPushBase, bytes []byte) (proto.Message, error
 
 ////////////////////
 
-func NewNetPacket(pid int32, protoType pb.ProtoType) *pb.NetPacket {
+func NewNetPacket(protoType pb.ProtoType) *pb.NetPacket {
 	return &pb.NetPacket{
-		Pid:       pid,
 		ProtoType: protoType,
 	}
 }
 
-func NewNetRequestPacket(pid int32) *pb.NetPacket {
-	return NewNetPacket(pid, pb.ProtoType_PROTO_TYPE_REQUEST)
+func NewNetRequestPacket() *pb.NetPacket {
+	return NewNetPacket(pb.ProtoType_PROTO_TYPE_REQUEST)
 }
 
-func NewNetResponsePacket(pid int32) *pb.NetPacket {
-	return NewNetPacket(pid, pb.ProtoType_PROTO_TYPE_RESPONSE)
+func NewNetResponsePacket() *pb.NetPacket {
+	return NewNetPacket(pb.ProtoType_PROTO_TYPE_RESPONSE)
 }
 
-func NewNetPushPacket(pid int32) *pb.NetPacket {
-	return NewNetPacket(pid, pb.ProtoType_PROTO_TYPE_PUSH)
+func NewNetPushPacket() *pb.NetPacket {
+	return NewNetPacket(pb.ProtoType_PROTO_TYPE_PUSH)
 }
 
 func NewNetRequest(opType pb.OpType) *pb.NetRequest {

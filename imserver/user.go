@@ -125,7 +125,7 @@ func (u *User) listenTimeout() {
 			//超时被踢
 			//Close conn之后Read会error，从而触发offline
 			bytes, _ := protopack.Encode(&pb.KickPush{
-				Packet:   protopack.NewNetPushPacket(u.GetPid()),
+				Packet:   protopack.NewNetPushPacket(),
 				Push:     protopack.NewNetPush(pb.PushType_PUSH_TYPE_KICK),
 			})
 			u.SendMessage(bytes)
@@ -152,21 +152,21 @@ func (u *User) requestHandler(packerBase *pb.NetPacketBase, protoBase proto.Mess
 			return
 		}
 		bytes, _ := protopack.Encode(&pb.BroadcastRsp{
-			Packet:   protopack.NewNetResponsePacket(packerBase.Packet.Pid),
+			Packet:   protopack.NewNetResponsePacket(),
 			Response: protopack.NewNetResponse(pb.OpType_OP_TYPE_BROADCAST, 200, ""),
 		})
 		//response
 		u.SendMessage(bytes)
 		//push
 		u.broadcast(&pb.BroadcastPush{
-			Packet:  protopack.NewNetPushPacket(u.GetPid()),
+			Packet:  protopack.NewNetPushPacket(),
 			Push:    protopack.NewNetPush(pb.PushType_PUSH_TYPE_BROADCAST),
 			User:    u.String(),
 			Content: request.Content,
 		})
 	case pb.OpType_OP_TYPE_QUERY:
 		bytes, _ := protopack.Encode(&pb.QueryRsp{
-			Packet:   protopack.NewNetResponsePacket(packerBase.Packet.Pid),
+			Packet:   protopack.NewNetResponsePacket(),
 			Response: protopack.NewNetResponse(pb.OpType_OP_TYPE_QUERY, 200, ""),
 			Users:    u.serverInterface.Query(),
 		})
@@ -180,7 +180,7 @@ func (u *User) requestHandler(packerBase *pb.NetPacketBase, protoBase proto.Mess
 		ok = u.serverInterface.Rename(u, request.NewName)
 
 		response := &pb.RenameRsp{
-			Packet: protopack.NewNetResponsePacket(packerBase.Packet.Pid),
+			Packet: protopack.NewNetResponsePacket(),
 		}
 		if ok {
 			response.Response = protopack.NewNetResponse(pb.OpType_OP_TYPE_RENAME, 200, "")
@@ -198,7 +198,7 @@ func (u *User) requestHandler(packerBase *pb.NetPacketBase, protoBase proto.Mess
 		}
 		err := u.serverInterface.PrivateChat(u, request.User, request.Content)
 		response := &pb.PrivateChatRsp{
-			Packet: protopack.NewNetResponsePacket(packerBase.Packet.Pid),
+			Packet: protopack.NewNetResponsePacket(),
 		}
 		if err == nil {
 			response.Response = protopack.NewNetResponse(pb.OpType_OP_TYPE_PRIVATE_CHAT, 200, "")
@@ -239,7 +239,7 @@ func (u *User) isChanClosed() bool {
 	}
 }
 
-func (u *User) GetPid() int32 {
+func (u *User) getPid() int32 {
 	u.pidLock.Lock()
 	defer u.pidLock.Unlock()
 	u.pid++

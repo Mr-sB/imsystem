@@ -105,28 +105,28 @@ func (c *Client) getPid() int32 {
 }
 
 func (c *Client) SendBroadcast(req *pb.BroadcastReq) {
-	req.Packet = protopack.NewNetRequestPacket(c.getPid())
+	req.Packet = protopack.NewNetRequestPacket()
 	req.Request = protopack.NewNetRequest(pb.OpType_OP_TYPE_BROADCAST)
 	bytes, _ := protopack.Encode(req)
 	c.SendMessage(bytes)
 }
 
 func (c *Client) SendQuery(req *pb.QueryReq) {
-	req.Packet = protopack.NewNetRequestPacket(c.getPid())
+	req.Packet = protopack.NewNetRequestPacket()
 	req.Request = protopack.NewNetRequest(pb.OpType_OP_TYPE_QUERY)
 	bytes, _ := protopack.Encode(req)
 	c.SendMessage(bytes)
 }
 
 func (c *Client) SendRename(req *pb.RenameReq) {
-	req.Packet = protopack.NewNetRequestPacket(c.getPid())
+	req.Packet = protopack.NewNetRequestPacket()
 	req.Request = protopack.NewNetRequest(pb.OpType_OP_TYPE_RENAME)
 	bytes, _ := protopack.Encode(req)
 	c.SendMessage(bytes)
 }
 
 func (c *Client) SendPrivateChat(req *pb.PrivateChatReq) {
-	req.Packet = protopack.NewNetRequestPacket(c.getPid())
+	req.Packet = protopack.NewNetRequestPacket()
 	req.Request = protopack.NewNetRequest(pb.OpType_OP_TYPE_PRIVATE_CHAT)
 	bytes, _ := protopack.Encode(req)
 	c.SendMessage(bytes)

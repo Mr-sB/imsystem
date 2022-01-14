@@ -33,8 +33,7 @@ enum PushType{
 
 //所有message都需要包含这个message为 1 字段
 message NetPacket{
-    int32 pid = 1;//消息唯一id
-    ProtoType proto_type = 2;
+    ProtoType proto_type = 1;
 }
 
 //用这个message去解析所有的bytes，然后根据pack再解析为具体的message
@@ -47,7 +46,8 @@ message NetPacketBase{
 
 //所有的request都包含这个message为 2 字段
 message NetRequest{
-    OpType op_type = 1;
+    int32 pid = 1;//消息唯一id
+    OpType op_type = 2;
 }
 
 message NetRequestBase{
@@ -63,11 +63,12 @@ message NetRequestBase{
 
 ////////////////////
 
-//所有的rsponse都包含这个message为 2 字段
+//所有的response都包含这个message为 2 字段
 message NetResponse{
-    OpType op_type = 1;
-    int32 code = 2;
-    string msg = 3;//code不为success时可能的提示消息
+    int32 pid = 1;//消息唯一id
+    OpType op_type = 2;
+    int32 code = 3;
+    string msg = 4;//code不为success时可能的提示消息
 }
 
 message NetResponseBase{
