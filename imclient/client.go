@@ -8,7 +8,6 @@ import (
 	"imsystem/protopack"
 	"net"
 	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -29,6 +28,8 @@ type Client struct {
 	pid            uint32
 	hbTimeoutCount uint32
 	closeWait      sync.WaitGroup
+	responseRouter map[pb.OpType]func(*pb.NetResponseBase, proto.Message)
+	pushRouter     map[pb.PushType]func(*pb.NetPushBase, proto.Message)
 }
 
 func (c *Client) String() string {
@@ -37,13 +38,18 @@ func (c *Client) String() string {
 
 func NewClient(ip string, port int) *Client {
 	return &Client{
-		Ip:     ip,
-		Port:   port,
-		online: 0,
+		Ip:             ip,
+		Port:           port,
+		online:         0,
 	}
 }
 
-func (c *Client) Start() bool {
+func (c *Client) InitRouter(responseRouter map[pb.OpType]func(*pb.NetResponseBase, proto.Message), pushRouter map[pb.PushType]func(*pb.NetPushBase, proto.Message)) {
+	c.responseRouter = responseRouter
+	c.pushRouter = pushRouter
+}
+
+func (c *Client) Connect() bool {
 	conn, err := net.Dial("tcp", net.JoinHostPort(c.Ip, strconv.Itoa(c.Port)))
 	if err != nil {
 		fmt.Println("connect error:", err, c)
@@ -63,7 +69,30 @@ func (c *Client) Start() bool {
 	return true
 }
 
-func (c *Client) sendMessage(message proto.Message) {
+func (c *Client) Disconnect() {
+	if !c.IsOnline() {
+		return
+	}
+	c.setOnline(false)
+
+	//让所有的go程结束
+	close(c.closeChan)
+	c.conn.Close()
+	c.closeWait.Wait()
+}
+
+func (c *Client) Reconnect() {
+	fmt.Println("Start reconnect.", c)
+	c.Disconnect()
+	success := c.Connect()
+	fmt.Println("Reconnect result:", success, c.IsOnline(), c)
+}
+
+func (c *Client) IsOnline() bool {
+	return atomic.LoadUint32(&c.online) != 0
+}
+
+func (c *Client) SendMessage(message proto.Message) {
 	bytes, err := protopack.Encode(message)
 	if err != nil {
 		fmt.Println("send error:", err)
@@ -75,6 +104,13 @@ func (c *Client) sendMessage(message proto.Message) {
 	_, err = c.conn.Write(bytes)
 	if err != nil {
 		fmt.Println("send error:", err)
+	}
+}
+
+func (c *Client) NewNetRequest(opType pb.OpType) *pb.NetRequest {
+	return &pb.NetRequest{
+		Pid:    c.getPid(),
+		OpType: opType,
 	}
 }
 
@@ -101,7 +137,7 @@ func (c *Client) readRemote() {
 func (c *Client) keepConnection() {
 	ticker := time.NewTicker(HEARTBEAT_INTERVAL)
 
-	close := func(){
+	close := func() {
 		c.closeWait.Done()
 		ticker.Stop()
 	}
@@ -112,7 +148,7 @@ func (c *Client) keepConnection() {
 			close()
 			return
 		case <-ticker.C:
-			if c.isChanClosed(){
+			if c.isChanClosed() {
 				close()
 				return
 			}
@@ -124,32 +160,9 @@ func (c *Client) keepConnection() {
 				return
 			}
 			//时间到，发送心跳包
-			c.SendHeartbeat(&pb.HeartbeatReq{})
+			c.sendHeartbeat(&pb.HeartbeatReq{})
 		}
 	}
-}
-
-func (c *Client) Disconnect() {
-	if !c.IsOnline() {
-		return
-	}
-	c.setOnline(false)
-
-	//让所有的go程结束
-	close(c.closeChan)
-	c.conn.Close()
-	c.closeWait.Wait()
-}
-
-func (c *Client) Reconnect() {
-	fmt.Println("Start reconnect.", c)
-	c.Disconnect()
-	success := c.Start()
-	fmt.Println("Reconnect result:", success, c.IsOnline(), c)
-}
-
-func (c *Client) IsOnline() bool {
-	return atomic.LoadUint32(&c.online) != 0
 }
 
 func (c *Client) setOnline(online bool) {
@@ -175,36 +188,6 @@ func (c *Client) getPid() uint32 {
 	return atomic.AddUint32(&c.pid, 1)
 }
 
-func (c *Client) SendHeartbeat(req *pb.HeartbeatReq) {
-	req.Packet = protopack.NewNetRequestPacket()
-	req.Request = protopack.NewNetRequest(c.getPid(), pb.OpType_OP_TYPE_HEARTBEAT)
-	c.sendMessage(req)
-}
-
-func (c *Client) SendBroadcast(req *pb.BroadcastReq) {
-	req.Packet = protopack.NewNetRequestPacket()
-	req.Request = protopack.NewNetRequest(c.getPid(), pb.OpType_OP_TYPE_BROADCAST)
-	c.sendMessage(req)
-}
-
-func (c *Client) SendQuery(req *pb.QueryReq) {
-	req.Packet = protopack.NewNetRequestPacket()
-	req.Request = protopack.NewNetRequest(c.getPid(), pb.OpType_OP_TYPE_QUERY)
-	c.sendMessage(req)
-}
-
-func (c *Client) SendRename(req *pb.RenameReq) {
-	req.Packet = protopack.NewNetRequestPacket()
-	req.Request = protopack.NewNetRequest(c.getPid(), pb.OpType_OP_TYPE_RENAME)
-	c.sendMessage(req)
-}
-
-func (c *Client) SendPrivateChat(req *pb.PrivateChatReq) {
-	req.Packet = protopack.NewNetRequestPacket()
-	req.Request = protopack.NewNetRequest(c.getPid(), pb.OpType_OP_TYPE_PRIVATE_CHAT)
-	c.sendMessage(req)
-}
-
 func (c *Client) handler(packerBase *pb.NetPacketBase, protoBase proto.Message, message proto.Message) {
 	switch packerBase.Packet.ProtoType {
 	case pb.ProtoType_PROTO_TYPE_RESPONSE:
@@ -226,50 +209,34 @@ func (c *Client) responseHandler(responseBase *pb.NetResponseBase, message proto
 	if responseBase.Response.Code != 200 {
 		fmt.Println("request failed:", responseBase.Response)
 	}
-	switch responseBase.Response.OpType {
-	case pb.OpType_OP_TYPE_HEARTBEAT:
-		//收到心跳包，重置心跳包超时次数
-		atomic.StoreUint32(&c.hbTimeoutCount, 0)
-	case pb.OpType_OP_TYPE_BROADCAST:
-
-	case pb.OpType_OP_TYPE_QUERY:
-		if responseBase.Response.Code != 200 {
+	if responseBase.Response.OpType == pb.OpType_OP_TYPE_HEARTBEAT {
+		c.rspHeartbeat()
+	} else {
+		router, ok := c.responseRouter[responseBase.Response.OpType]
+		if !ok || router == nil {
 			return
 		}
-		response, ok := message.(*pb.QueryRsp)
-		if !ok {
-			return
-		}
-		fmt.Println(strings.Join(response.Users, "\n"))
-	case pb.OpType_OP_TYPE_RENAME:
-		if responseBase.Response.Code != 200 {
-			return
-		}
-		response, ok := message.(*pb.RenameRsp)
-		if !ok {
-			return
-		}
-		fmt.Println("New name:", response.NewName)
-	case pb.OpType_OP_TYPE_PRIVATE_CHAT:
-
+		router(responseBase, message)
 	}
 }
 
 func (c *Client) pushHandler(pushBase *pb.NetPushBase, message proto.Message) {
-	switch pushBase.Push.PushType {
-	case pb.PushType_PUSH_TYPE_KICK:
-		fmt.Println("kicked by server")
-	case pb.PushType_PUSH_TYPE_BROADCAST:
-		push, ok := message.(*pb.BroadcastPush)
-		if !ok {
-			return
-		}
-		fmt.Println("广播:", push.User, push.Content)
-	case pb.PushType_PUSH_TYPE_PRIVATE_CHAT:
-		push, ok := message.(*pb.PrivateChatPush)
-		if !ok {
-			return
-		}
-		fmt.Println("私聊:", push.User, push.Content)
+	router, ok := c.pushRouter[pushBase.Push.PushType]
+	if !ok || router == nil {
+		return
 	}
+	router(pushBase, message)
+}
+
+//Response router
+func (c *Client) rspHeartbeat() {
+	//收到心跳包，重置心跳包超时次数
+	atomic.StoreUint32(&c.hbTimeoutCount, 0)
+}
+
+//Send
+func (c *Client) sendHeartbeat(req *pb.HeartbeatReq) {
+	req.Packet = protopack.NewNetRequestPacket()
+	req.Request = protopack.NewNetRequest(c.getPid(), pb.OpType_OP_TYPE_HEARTBEAT)
+	c.SendMessage(req)
 }

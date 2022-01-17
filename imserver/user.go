@@ -4,9 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"google.golang.org/protobuf/proto"
-	_ "google.golang.org/protobuf/proto"
 	"imsystem/pb"
-	_ "imsystem/pb"
 	"imsystem/protopack"
 	"net"
 	"sync/atomic"
@@ -23,6 +21,7 @@ type User struct {
 	online          uint32
 	serverInterface ServerInterface
 	pid             uint32
+	requestRouter   map[pb.OpType]func(*pb.NetRequestBase, proto.Message)
 }
 
 func NewUser(conn net.Conn, serverInterface ServerInterface) *User {
@@ -37,7 +36,17 @@ func NewUser(conn net.Conn, serverInterface ServerInterface) *User {
 		online:          0,
 		serverInterface: serverInterface,
 	}
+	user.initRouter()
 	return user
+}
+
+func (u *User) initRouter() {
+	u.requestRouter = make(map[pb.OpType]func(*pb.NetRequestBase, proto.Message), 5)
+	u.requestRouter[pb.OpType_OP_TYPE_HEARTBEAT] = u.reqHeartbeat
+	u.requestRouter[pb.OpType_OP_TYPE_BROADCAST] = u.reqBroadcast
+	u.requestRouter[pb.OpType_OP_TYPE_QUERY] = u.reqQuery
+	u.requestRouter[pb.OpType_OP_TYPE_RENAME] = u.reqRename
+	u.requestRouter[pb.OpType_OP_TYPE_PRIVATE_CHAT] = u.reqPrivateChat
 }
 
 func (u *User) String() string {
@@ -134,8 +143,8 @@ func (u *User) listenTimeout() {
 			//超时被踢
 			//Close conn之后Read会error，从而触发offline
 			bytes, _ := protopack.Encode(&pb.KickPush{
-				Packet:   protopack.NewNetPushPacket(),
-				Push:     protopack.NewNetPush(pb.PushType_PUSH_TYPE_KICK),
+				Packet: protopack.NewNetPushPacket(),
+				Push:   protopack.NewNetPush(pb.PushType_PUSH_TYPE_KICK),
 			})
 			u.SendMessage(bytes)
 			u.conn.Close()
@@ -151,81 +160,11 @@ func (u *User) requestHandler(packerBase *pb.NetPacketBase, protoBase proto.Mess
 	if !ok {
 		return
 	}
-
-	switch requestBase.Request.OpType {
-	case pb.OpType_OP_TYPE_HEARTBEAT:
-		if !ok {
-			return
-		}
-		bytes, _ := protopack.Encode(&pb.HeartbeatRsp{
-			Packet:   protopack.NewNetResponsePacket(),
-			Response: protopack.NewNetResponse(requestBase.Request.Pid, pb.OpType_OP_TYPE_HEARTBEAT, 200, ""),
-		})
-		//response
-		u.SendMessage(bytes)
-	case pb.OpType_OP_TYPE_BROADCAST:
-		request, ok := message.(*pb.BroadcastReq)
-		if !ok {
-			return
-		}
-		bytes, _ := protopack.Encode(&pb.BroadcastRsp{
-			Packet:   protopack.NewNetResponsePacket(),
-			Response: protopack.NewNetResponse(requestBase.Request.Pid, pb.OpType_OP_TYPE_BROADCAST, 200, ""),
-		})
-		//response
-		u.SendMessage(bytes)
-		//push
-		u.broadcast(&pb.BroadcastPush{
-			Packet:  protopack.NewNetPushPacket(),
-			Push:    protopack.NewNetPush(pb.PushType_PUSH_TYPE_BROADCAST),
-			User:    u.String(),
-			Content: request.Content,
-		})
-	case pb.OpType_OP_TYPE_QUERY:
-		bytes, _ := protopack.Encode(&pb.QueryRsp{
-			Packet:   protopack.NewNetResponsePacket(),
-			Response: protopack.NewNetResponse(requestBase.Request.Pid, pb.OpType_OP_TYPE_QUERY, 200, ""),
-			Users:    u.serverInterface.Query(),
-		})
-		//response
-		u.SendMessage(bytes)
-	case pb.OpType_OP_TYPE_RENAME:
-		request, ok := message.(*pb.RenameReq)
-		if !ok {
-			return
-		}
-		ok = u.serverInterface.Rename(u, request.NewName)
-
-		response := &pb.RenameRsp{
-			Packet: protopack.NewNetResponsePacket(),
-		}
-		if ok {
-			response.Response = protopack.NewNetResponse(requestBase.Request.Pid, pb.OpType_OP_TYPE_RENAME, 200, "")
-			response.NewName = request.NewName
-		} else {
-			response.Response = protopack.NewNetResponse(requestBase.Request.Pid, pb.OpType_OP_TYPE_RENAME, 500, "改名失败，名字重复："+request.NewName)
-		}
-		bytes, _ := protopack.Encode(response)
-		//response
-		u.SendMessage(bytes)
-	case pb.OpType_OP_TYPE_PRIVATE_CHAT:
-		request, ok := message.(*pb.PrivateChatReq)
-		if !ok {
-			return
-		}
-		err := u.serverInterface.PrivateChat(u, request.User, request.Content)
-		response := &pb.PrivateChatRsp{
-			Packet: protopack.NewNetResponsePacket(),
-		}
-		if err == nil {
-			response.Response = protopack.NewNetResponse(requestBase.Request.Pid, pb.OpType_OP_TYPE_PRIVATE_CHAT, 200, "")
-		} else {
-			response.Response = protopack.NewNetResponse(requestBase.Request.Pid, pb.OpType_OP_TYPE_PRIVATE_CHAT, 500, err.Error())
-		}
-		bytes, _ := protopack.Encode(response)
-		//response
-		u.SendMessage(bytes)
+	router, ok := u.requestRouter[requestBase.Request.OpType]
+	if !ok || router == nil {
+		return
 	}
+	router(requestBase, message)
 }
 
 func (u *User) broadcast(broadcastPush *pb.BroadcastPush) {
@@ -258,4 +197,84 @@ func (u *User) isChanClosed() bool {
 
 func (u *User) getPid() uint32 {
 	return atomic.AddUint32(&u.pid, 1)
+}
+
+//Router
+func (u *User) reqHeartbeat(requestBase *pb.NetRequestBase, message proto.Message) {
+	bytes, _ := protopack.Encode(&pb.HeartbeatRsp{
+		Packet:   protopack.NewNetResponsePacket(),
+		Response: protopack.NewNetResponse(requestBase.Request.Pid, pb.OpType_OP_TYPE_HEARTBEAT, 200, ""),
+	})
+	//response
+	u.SendMessage(bytes)
+}
+
+func (u *User) reqBroadcast(requestBase *pb.NetRequestBase, message proto.Message) {
+	request, ok := message.(*pb.BroadcastReq)
+	if !ok {
+		return
+	}
+	bytes, _ := protopack.Encode(&pb.BroadcastRsp{
+		Packet:   protopack.NewNetResponsePacket(),
+		Response: protopack.NewNetResponse(requestBase.Request.Pid, pb.OpType_OP_TYPE_BROADCAST, 200, ""),
+	})
+	//response
+	u.SendMessage(bytes)
+	//push
+	u.broadcast(&pb.BroadcastPush{
+		Packet:  protopack.NewNetPushPacket(),
+		Push:    protopack.NewNetPush(pb.PushType_PUSH_TYPE_BROADCAST),
+		User:    u.String(),
+		Content: request.Content,
+	})
+}
+
+func (u *User) reqQuery(requestBase *pb.NetRequestBase, message proto.Message) {
+	bytes, _ := protopack.Encode(&pb.QueryRsp{
+		Packet:   protopack.NewNetResponsePacket(),
+		Response: protopack.NewNetResponse(requestBase.Request.Pid, pb.OpType_OP_TYPE_QUERY, 200, ""),
+		Users:    u.serverInterface.Query(),
+	})
+	//response
+	u.SendMessage(bytes)
+}
+
+func (u *User) reqRename(requestBase *pb.NetRequestBase, message proto.Message) {
+	request, ok := message.(*pb.RenameReq)
+	if !ok {
+		return
+	}
+	ok = u.serverInterface.Rename(u, request.NewName)
+
+	response := &pb.RenameRsp{
+		Packet: protopack.NewNetResponsePacket(),
+	}
+	if ok {
+		response.Response = protopack.NewNetResponse(requestBase.Request.Pid, pb.OpType_OP_TYPE_RENAME, 200, "")
+		response.NewName = request.NewName
+	} else {
+		response.Response = protopack.NewNetResponse(requestBase.Request.Pid, pb.OpType_OP_TYPE_RENAME, 500, "改名失败，名字重复："+request.NewName)
+	}
+	bytes, _ := protopack.Encode(response)
+	//response
+	u.SendMessage(bytes)
+}
+
+func (u *User) reqPrivateChat(requestBase *pb.NetRequestBase, message proto.Message) {
+	request, ok := message.(*pb.PrivateChatReq)
+	if !ok {
+		return
+	}
+	err := u.serverInterface.PrivateChat(u, request.User, request.Content)
+	response := &pb.PrivateChatRsp{
+		Packet: protopack.NewNetResponsePacket(),
+	}
+	if err == nil {
+		response.Response = protopack.NewNetResponse(requestBase.Request.Pid, pb.OpType_OP_TYPE_PRIVATE_CHAT, 200, "")
+	} else {
+		response.Response = protopack.NewNetResponse(requestBase.Request.Pid, pb.OpType_OP_TYPE_PRIVATE_CHAT, 500, err.Error())
+	}
+	bytes, _ := protopack.Encode(response)
+	//response
+	u.SendMessage(bytes)
 }
