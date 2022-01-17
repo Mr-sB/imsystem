@@ -46,7 +46,7 @@ message NetPacketBase{
 
 //所有的request都包含这个message为 2 字段
 message NetRequest{
-    int32 pid = 1;//消息唯一id
+    uint32 pid = 1;//消息唯一id
     OpType op_type = 2;
 }
 
@@ -65,9 +65,9 @@ message NetRequestBase{
 
 //所有的response都包含这个message为 2 字段
 message NetResponse{
-    int32 pid = 1;//消息唯一id
+    uint32 pid = 1;//消息唯一id
     OpType op_type = 2;
-    int32 code = 3;
+    uint32 code = 3;
     string msg = 4;//code不为success时可能的提示消息
 }
 

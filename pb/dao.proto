@@ -4,6 +4,16 @@ option go_package = "imsystem/pb";
 package pb;
 import "net-packet.proto";
 
+message HeartbeatReq{
+    NetPacket packet = 1;
+    NetRequest request = 2;
+}
+
+message HeartbeatRsp{
+    NetPacket packet = 1;
+    NetResponse response = 2;
+}
+
 message BroadcastReq{
     NetPacket packet = 1;
     NetRequest request = 2;

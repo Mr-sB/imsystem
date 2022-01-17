@@ -78,7 +78,7 @@ func requestUnmarshal(requestBase *pb.NetRequestBase, bytes []byte) (proto.Messa
 	case pb.OpType_OP_TYPE_UNKNOWN:
 		err = ErrUnknownOpType
 	case pb.OpType_OP_TYPE_HEARTBEAT:
-		//TODO
+		message = &pb.HeartbeatReq{}
 	case pb.OpType_OP_TYPE_BROADCAST:
 		message = &pb.BroadcastReq{}
 	case pb.OpType_OP_TYPE_QUERY:
@@ -105,7 +105,7 @@ func responseUnmarshal(responseBase *pb.NetResponseBase, bytes []byte) (proto.Me
 	case pb.OpType_OP_TYPE_UNKNOWN:
 		err = ErrUnknownOpType
 	case pb.OpType_OP_TYPE_HEARTBEAT:
-		//TODO
+		message = &pb.HeartbeatRsp{}
 	case pb.OpType_OP_TYPE_BROADCAST:
 		message = &pb.BroadcastRsp{}
 	case pb.OpType_OP_TYPE_QUERY:
@@ -168,14 +168,16 @@ func NewNetPushPacket() *pb.NetPacket {
 	return NewNetPacket(pb.ProtoType_PROTO_TYPE_PUSH)
 }
 
-func NewNetRequest(opType pb.OpType) *pb.NetRequest {
+func NewNetRequest(pid uint32, opType pb.OpType) *pb.NetRequest {
 	return &pb.NetRequest{
+		Pid:    pid,
 		OpType: opType,
 	}
 }
 
-func NewNetResponse(opType pb.OpType, code int32, msg string) *pb.NetResponse {
+func NewNetResponse(pid uint32, opType pb.OpType, code uint32, msg string) *pb.NetResponse {
 	return &pb.NetResponse{
+		Pid:    pid,
 		OpType: opType,
 		Code:   code,
 		Msg:    msg,

@@ -9,7 +9,7 @@ import (
 	_ "imsystem/pb"
 	"imsystem/protopack"
 	"net"
-	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -20,11 +20,9 @@ type User struct {
 	messageChan     chan []byte
 	aliveChan       chan struct{}
 	closeChan       chan struct{}
-	online          bool
-	onlineLock      sync.Mutex //没必要读写锁了，判断成功的话需要立即写，所以直接全锁
+	online          uint32
 	serverInterface ServerInterface
-	pid             int32
-	pidLock         sync.Mutex //没必要读写锁
+	pid             uint32
 }
 
 func NewUser(conn net.Conn, serverInterface ServerInterface) *User {
@@ -36,7 +34,7 @@ func NewUser(conn net.Conn, serverInterface ServerInterface) *User {
 		messageChan:     make(chan []byte),
 		aliveChan:       make(chan struct{}),
 		closeChan:       make(chan struct{}),
-		online:          false,
+		online:          0,
 		serverInterface: serverInterface,
 	}
 	return user
@@ -47,7 +45,7 @@ func (u *User) String() string {
 }
 
 func (u *User) Online() {
-	u.online = true
+	u.setOnline(true)
 	go u.listenMessage()
 
 	//监听用户消息
@@ -72,15 +70,26 @@ func (u *User) SendMessage(message []byte) {
 	}
 }
 
+func (u *User) IsOnline() bool {
+	return atomic.LoadUint32(&u.online) != 0
+}
+
+func (u *User) setOnline(online bool) {
+	var value uint32
+	if online {
+		value = 1
+	} else {
+		value = 0
+	}
+	atomic.StoreUint32(&u.online, value)
+}
+
 func (u *User) offline() {
 	//避免重复offline
-	u.onlineLock.Lock()
-	if !u.online {
-		u.onlineLock.Unlock()
+	if !u.IsOnline() {
 		return
 	}
-	u.online = false
-	u.onlineLock.Unlock()
+	u.setOnline(false)
 
 	//让所有的go程结束
 	close(u.closeChan)
@@ -145,7 +154,15 @@ func (u *User) requestHandler(packerBase *pb.NetPacketBase, protoBase proto.Mess
 
 	switch requestBase.Request.OpType {
 	case pb.OpType_OP_TYPE_HEARTBEAT:
-		//TODO
+		if !ok {
+			return
+		}
+		bytes, _ := protopack.Encode(&pb.HeartbeatRsp{
+			Packet:   protopack.NewNetResponsePacket(),
+			Response: protopack.NewNetResponse(requestBase.Request.Pid, pb.OpType_OP_TYPE_HEARTBEAT, 200, ""),
+		})
+		//response
+		u.SendMessage(bytes)
 	case pb.OpType_OP_TYPE_BROADCAST:
 		request, ok := message.(*pb.BroadcastReq)
 		if !ok {
@@ -153,7 +170,7 @@ func (u *User) requestHandler(packerBase *pb.NetPacketBase, protoBase proto.Mess
 		}
 		bytes, _ := protopack.Encode(&pb.BroadcastRsp{
 			Packet:   protopack.NewNetResponsePacket(),
-			Response: protopack.NewNetResponse(pb.OpType_OP_TYPE_BROADCAST, 200, ""),
+			Response: protopack.NewNetResponse(requestBase.Request.Pid, pb.OpType_OP_TYPE_BROADCAST, 200, ""),
 		})
 		//response
 		u.SendMessage(bytes)
@@ -167,7 +184,7 @@ func (u *User) requestHandler(packerBase *pb.NetPacketBase, protoBase proto.Mess
 	case pb.OpType_OP_TYPE_QUERY:
 		bytes, _ := protopack.Encode(&pb.QueryRsp{
 			Packet:   protopack.NewNetResponsePacket(),
-			Response: protopack.NewNetResponse(pb.OpType_OP_TYPE_QUERY, 200, ""),
+			Response: protopack.NewNetResponse(requestBase.Request.Pid, pb.OpType_OP_TYPE_QUERY, 200, ""),
 			Users:    u.serverInterface.Query(),
 		})
 		//response
@@ -183,10 +200,10 @@ func (u *User) requestHandler(packerBase *pb.NetPacketBase, protoBase proto.Mess
 			Packet: protopack.NewNetResponsePacket(),
 		}
 		if ok {
-			response.Response = protopack.NewNetResponse(pb.OpType_OP_TYPE_RENAME, 200, "")
+			response.Response = protopack.NewNetResponse(requestBase.Request.Pid, pb.OpType_OP_TYPE_RENAME, 200, "")
 			response.NewName = request.NewName
 		} else {
-			response.Response = protopack.NewNetResponse(pb.OpType_OP_TYPE_RENAME, 500, "改名失败，名字重复："+request.NewName)
+			response.Response = protopack.NewNetResponse(requestBase.Request.Pid, pb.OpType_OP_TYPE_RENAME, 500, "改名失败，名字重复："+request.NewName)
 		}
 		bytes, _ := protopack.Encode(response)
 		//response
@@ -201,9 +218,9 @@ func (u *User) requestHandler(packerBase *pb.NetPacketBase, protoBase proto.Mess
 			Packet: protopack.NewNetResponsePacket(),
 		}
 		if err == nil {
-			response.Response = protopack.NewNetResponse(pb.OpType_OP_TYPE_PRIVATE_CHAT, 200, "")
+			response.Response = protopack.NewNetResponse(requestBase.Request.Pid, pb.OpType_OP_TYPE_PRIVATE_CHAT, 200, "")
 		} else {
-			response.Response = protopack.NewNetResponse(pb.OpType_OP_TYPE_PRIVATE_CHAT, 500, err.Error())
+			response.Response = protopack.NewNetResponse(requestBase.Request.Pid, pb.OpType_OP_TYPE_PRIVATE_CHAT, 500, err.Error())
 		}
 		bytes, _ := protopack.Encode(response)
 		//response
@@ -239,9 +256,6 @@ func (u *User) isChanClosed() bool {
 	}
 }
 
-func (u *User) getPid() int32 {
-	u.pidLock.Lock()
-	defer u.pidLock.Unlock()
-	u.pid++
-	return u.pid
+func (u *User) getPid() uint32 {
+	return atomic.AddUint32(&u.pid, 1)
 }

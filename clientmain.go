@@ -28,6 +28,7 @@ func main() {
 	fmt.Println("2.查询在线用户")
 	fmt.Println("3.改名")
 	fmt.Println("4.私聊")
+	fmt.Println("5.重连")
 	fmt.Println("99.退出")
 
 	var mode int
@@ -59,6 +60,8 @@ func main() {
 				User: user,
 				Content: content,
 			})
+		case 5:
+			client.Reconnect()
 		case 99:
 			break
 		}
