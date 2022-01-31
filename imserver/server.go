@@ -57,8 +57,8 @@ func (s *Server) Start() {
 	}
 }
 
-func (s *Server) Broadcast(broadcastPush *pb.BroadcastPush) {
-	bytes, err := protopack.Encode(broadcastPush)
+func (s *Server) Broadcast(body *pb.BroadcastPush) {
+	bytes, err := protopack.Encode(protopack.NewPushHead(pb.PushType_PUSH_TYPE_BROADCAST), body)
 	if err != nil {
 		fmt.Println("broadcast error:", err)
 	}
@@ -72,8 +72,6 @@ func (s *Server) UserOffline(user *User) {
 
 	//下线广播
 	s.Broadcast(&pb.BroadcastPush{
-		Packet:  protopack.NewNetPushPacket(),
-		Push:    protopack.NewNetPush(pb.PushType_PUSH_TYPE_BROADCAST),
 		User:    user.String(),
 		Content: "下线",
 	})
@@ -109,12 +107,13 @@ func (s *Server) PrivateChat(user *User, toUserName string, content string) erro
 	if !ok {
 		return errors.New("查无此人:" + toUserName)
 	}
-	bytes, _ := protopack.Encode(&pb.PrivateChatPush{
-		Packet:  protopack.NewNetPushPacket(),
-		Push:    protopack.NewNetPush(pb.PushType_PUSH_TYPE_PRIVATE_CHAT),
+	bytes, err := protopack.Encode(protopack.NewPushHead(pb.PushType_PUSH_TYPE_PRIVATE_CHAT), &pb.PrivateChatPush{
 		User:    user.String(),
 		Content: content,
 	})
+	if err != nil {
+		return err
+	}
 	toUser.SendMessage(bytes)
 	return nil
 }
@@ -127,8 +126,6 @@ func (s *Server) userOnline(user *User) {
 	user.Online()
 	//上线广播
 	s.Broadcast(&pb.BroadcastPush{
-		Packet:  protopack.NewNetPushPacket(),
-		Push:    protopack.NewNetPush(pb.PushType_PUSH_TYPE_BROADCAST),
 		User:    user.String(),
 		Content: "上线",
 	})

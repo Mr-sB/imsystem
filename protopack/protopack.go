@@ -1,80 +1,107 @@
 package protopack
 
 import (
+	"encoding/binary"
 	"errors"
+	"fmt"
 	"google.golang.org/protobuf/proto"
-	"imsystem/pack"
 	"imsystem/pb"
 	"io"
 )
 
-var (
-	ErrUnknownProtoType = errors.New("proto pack: unknown proto type")
-	ErrUnknownOpType    = errors.New("proto pack: unknown op type")
-	ErrUnknownPushType  = errors.New("proto pack: unknown push type")
+const (
+	HeadLen  = 2 //比TotalLen小
+	TotalLen = 4
 )
 
-func Encode(message proto.Message) ([]byte, error) {
-	bytes, err := proto.Marshal(message)
+var (
+	ErrProtoPack        = errors.New("proto pack error")
+	ErrUnknownProtoType = fmt.Errorf("unknown proto type: %w", ErrProtoPack)
+	ErrUnknownOpType    = fmt.Errorf("unknown op type: %w", ErrProtoPack)
+	ErrUnknownPushType  = fmt.Errorf("unknown push type: %w", ErrProtoPack)
+)
+
+func Encode(head *pb.HeadPack, body proto.Message) ([]byte, error) {
+	headBytes, err := proto.Marshal(head)
 	if err != nil {
-		return bytes, err
+		return headBytes, err
 	}
-	return pack.Encode(bytes), nil
+	bodyBytes, err := proto.Marshal(body)
+	if err != nil {
+		return bodyBytes, err
+	}
+	//头部长度
+	headLen := uint16(len(headBytes))
+	//总长度
+	totalLen := uint32(TotalLen + HeadLen + int(headLen) + len(bodyBytes))
+
+	message := make([]byte, totalLen)
+	//写入总长度
+	binary.LittleEndian.PutUint32(message, totalLen)
+	//写入头部长度
+	binary.LittleEndian.PutUint16(message[TotalLen:], headLen)
+	//复制头部
+	copy(message[TotalLen+HeadLen:], headBytes)
+	//复制消息体
+	copy(message[TotalLen+HeadLen+headLen:], bodyBytes)
+	return message, nil
 }
 
-func Decode(reader io.Reader) (*pb.NetPacketBase, proto.Message, proto.Message, error) {
-	bytes, err := pack.Decode(reader)
+func Decode(reader io.Reader) (*pb.HeadPack, proto.Message, error) {
+	//读取消息长度
+	bytes := make([]byte, TotalLen)
+	_, err := io.ReadFull(reader, bytes)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
-	packetBase := &pb.NetPacketBase{}
-	err = proto.Unmarshal(bytes, packetBase)
+	totalLen := binary.LittleEndian.Uint32(bytes)
+	//读取消息头部长度
+	_, err = io.ReadFull(reader, bytes[:HeadLen])
 	if err != nil {
-		return packetBase, nil, nil, err
+		return nil, nil, err
 	}
-
-	var protoBase, message proto.Message = nil, nil
-
-	switch packetBase.Packet.ProtoType {
+	headLen := binary.LittleEndian.Uint16(bytes)
+	//读取头部
+	headBytes := make([]byte, headLen)
+	_, err = io.ReadFull(reader, headBytes)
+	if err != nil {
+		return nil, nil, err
+	}
+	head := &pb.HeadPack{}
+	err = proto.Unmarshal(headBytes, head)
+	if err != nil {
+		return head, nil, err
+	}
+	//读取消息体
+	bodyBytes := make([]byte, totalLen-TotalLen-HeadLen-uint32(headLen))
+	_, err = io.ReadFull(reader, bodyBytes)
+	if err != nil {
+		return nil, nil, err
+	}
+	//解析消息体
+	var body proto.Message = nil
+	switch head.ProtoType {
 	case pb.ProtoType_PROTO_TYPE_UNKNOWN:
 		err = ErrUnknownProtoType
 	case pb.ProtoType_PROTO_TYPE_REQUEST:
-		requestBase := &pb.NetRequestBase{}
-		protoBase = requestBase
-		err = proto.Unmarshal(bytes, requestBase)
-		if err != nil {
-			break
-		}
 		//解析request
-		message, err = requestUnmarshal(requestBase, bytes)
+		body, err = requestUnmarshal(head, bodyBytes)
 	case pb.ProtoType_PROTO_TYPE_RESPONSE:
-		responseBase := &pb.NetResponseBase{}
-		protoBase = responseBase
-		err = proto.Unmarshal(bytes, responseBase)
-		if err != nil {
-			break
-		}
 		//解析response
-		message, err = responseUnmarshal(responseBase, bytes)
+		body, err = responseUnmarshal(head, bodyBytes)
 	case pb.ProtoType_PROTO_TYPE_PUSH:
-		pushBase := &pb.NetPushBase{}
-		protoBase = pushBase
-		err = proto.Unmarshal(bytes, pushBase)
-		if err != nil {
-			break
-		}
 		//解析push
-		message, err = pushUnmarshal(pushBase, bytes)
+		body, err = pushUnmarshal(head, bodyBytes)
 	}
-	return packetBase, protoBase, message, err
+	return head, body, err
 }
 
 ////////////////////
 
-func requestUnmarshal(requestBase *pb.NetRequestBase, bytes []byte) (proto.Message, error) {
+func requestUnmarshal(head *pb.HeadPack, bytes []byte) (proto.Message, error) {
 	var message proto.Message = nil
 	var err error = nil
-	switch requestBase.Request.OpType {
+	switch pb.OpType(head.Type) {
 	case pb.OpType_OP_TYPE_UNKNOWN:
 		err = ErrUnknownOpType
 	case pb.OpType_OP_TYPE_HEARTBEAT:
@@ -98,10 +125,10 @@ func requestUnmarshal(requestBase *pb.NetRequestBase, bytes []byte) (proto.Messa
 	return message, err
 }
 
-func responseUnmarshal(responseBase *pb.NetResponseBase, bytes []byte) (proto.Message, error) {
+func responseUnmarshal(head *pb.HeadPack, bytes []byte) (proto.Message, error) {
 	var message proto.Message = nil
 	var err error = nil
-	switch responseBase.Response.OpType {
+	switch pb.OpType(head.Type) {
 	case pb.OpType_OP_TYPE_UNKNOWN:
 		err = ErrUnknownOpType
 	case pb.OpType_OP_TYPE_HEARTBEAT:
@@ -125,10 +152,10 @@ func responseUnmarshal(responseBase *pb.NetResponseBase, bytes []byte) (proto.Me
 	return message, err
 }
 
-func pushUnmarshal(pushBase *pb.NetPushBase, bytes []byte) (proto.Message, error) {
+func pushUnmarshal(head *pb.HeadPack, bytes []byte) (proto.Message, error) {
 	var message proto.Message = nil
 	var err error = nil
-	switch pushBase.Push.PushType {
+	switch pb.PushType(head.Type) {
 	case pb.PushType_PUSH_TYPE_UNKNOWN:
 		err = ErrUnknownPushType
 	case pb.PushType_PUSH_TYPE_KICK:
@@ -150,42 +177,26 @@ func pushUnmarshal(pushBase *pb.NetPushBase, bytes []byte) (proto.Message, error
 
 ////////////////////
 
-func NewNetPacket(protoType pb.ProtoType) *pb.NetPacket {
-	return &pb.NetPacket{
-		ProtoType: protoType,
+func NewRequestHead(pid uint32, opType pb.OpType) *pb.HeadPack {
+	return &pb.HeadPack{
+		ProtoType: pb.ProtoType_PROTO_TYPE_REQUEST,
+		Pid:       pid,
+		Type:      uint32(opType),
 	}
 }
 
-func NewNetRequestPacket() *pb.NetPacket {
-	return NewNetPacket(pb.ProtoType_PROTO_TYPE_REQUEST)
-}
-
-func NewNetResponsePacket() *pb.NetPacket {
-	return NewNetPacket(pb.ProtoType_PROTO_TYPE_RESPONSE)
-}
-
-func NewNetPushPacket() *pb.NetPacket {
-	return NewNetPacket(pb.ProtoType_PROTO_TYPE_PUSH)
-}
-
-func NewNetRequest(pid uint32, opType pb.OpType) *pb.NetRequest {
-	return &pb.NetRequest{
-		Pid:    pid,
-		OpType: opType,
+func NewResponseHead(pid uint32, opType pb.OpType, code uint32) *pb.HeadPack {
+	return &pb.HeadPack{
+		ProtoType: pb.ProtoType_PROTO_TYPE_RESPONSE,
+		Pid:       pid,
+		Type:      uint32(opType),
+		Code:      code,
 	}
 }
 
-func NewNetResponse(pid uint32, opType pb.OpType, code uint32, msg string) *pb.NetResponse {
-	return &pb.NetResponse{
-		Pid:    pid,
-		OpType: opType,
-		Code:   code,
-		Msg:    msg,
-	}
-}
-
-func NewNetPush(pushType pb.PushType) *pb.NetPush {
-	return &pb.NetPush{
-		PushType: pushType,
+func NewPushHead(pushType pb.PushType) *pb.HeadPack {
+	return &pb.HeadPack{
+		ProtoType: pb.ProtoType_PROTO_TYPE_PUSH,
+		Type:      uint32(pushType),
 	}
 }

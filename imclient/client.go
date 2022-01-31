@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	HEARTBEAT_INTERVAL          = 5 * time.Second
-	HEARTBEAT_MAX_TIMEOUT_COUNT = 3
+	HeartbeatInterval        = 5 * time.Second
+	HeartbeatMaxTimeoutCount = 3
 )
 
 type Client struct {
@@ -28,8 +28,8 @@ type Client struct {
 	pid            uint32
 	hbTimeoutCount uint32
 	closeWait      sync.WaitGroup
-	responseRouter map[pb.OpType]func(*pb.NetResponseBase, proto.Message)
-	pushRouter     map[pb.PushType]func(*pb.NetPushBase, proto.Message)
+	responseRouter map[pb.OpType]func(*pb.HeadPack, proto.Message)
+	pushRouter     map[pb.PushType]func(proto.Message)
 }
 
 func (c *Client) String() string {
@@ -44,7 +44,7 @@ func NewClient(ip string, port int) *Client {
 	}
 }
 
-func (c *Client) InitRouter(responseRouter map[pb.OpType]func(*pb.NetResponseBase, proto.Message), pushRouter map[pb.PushType]func(*pb.NetPushBase, proto.Message)) {
+func (c *Client) InitRouter(responseRouter map[pb.OpType]func(*pb.HeadPack, proto.Message), pushRouter map[pb.PushType]func(proto.Message)) {
 	c.responseRouter = responseRouter
 	c.pushRouter = pushRouter
 }
@@ -92,8 +92,8 @@ func (c *Client) IsOnline() bool {
 	return atomic.LoadUint32(&c.online) != 0
 }
 
-func (c *Client) SendMessage(message proto.Message) {
-	bytes, err := protopack.Encode(message)
+func (c *Client) SendMessage(head *pb.HeadPack, body proto.Message) {
+	bytes, err := protopack.Encode(head, body)
 	if err != nil {
 		fmt.Println("send error:", err)
 	}
@@ -107,18 +107,15 @@ func (c *Client) SendMessage(message proto.Message) {
 	}
 }
 
-func (c *Client) NewNetRequest(opType pb.OpType) *pb.NetRequest {
-	return &pb.NetRequest{
-		Pid:    c.getPid(),
-		OpType: opType,
-	}
+func (c *Client) NewRequestHead(opType pb.OpType) *pb.HeadPack {
+	return protopack.NewRequestHead(c.getPid(), opType)
 }
 
 func (c *Client) readRemote() {
 	defer c.closeWait.Done()
 	for {
-		packetBase, protoBase, message, err := protopack.Decode(c.conn)
-		if errors.Is(err, protopack.ErrUnknownProtoType) || errors.Is(err, protopack.ErrUnknownOpType) || errors.Is(err, protopack.ErrUnknownPushType) {
+		head, body, err := protopack.Decode(c.conn)
+		if errors.Is(err, protopack.ErrProtoPack) {
 			fmt.Println("conn read error:", err, c)
 			continue
 		}
@@ -129,13 +126,13 @@ func (c *Client) readRemote() {
 			//err == io.EOF 合法下线
 			return
 		}
-		c.handler(packetBase, protoBase, message)
+		c.handler(head, body)
 	}
 }
 
 //发送心跳包保持连接，超时的时候自动重连
 func (c *Client) keepConnection() {
-	ticker := time.NewTicker(HEARTBEAT_INTERVAL)
+	ticker := time.NewTicker(HeartbeatInterval)
 
 	close := func() {
 		c.closeWait.Done()
@@ -153,14 +150,14 @@ func (c *Client) keepConnection() {
 				return
 			}
 			hbTimeoutCount := atomic.AddUint32(&c.hbTimeoutCount, 1)
-			if hbTimeoutCount > HEARTBEAT_MAX_TIMEOUT_COUNT {
+			if hbTimeoutCount > HeartbeatMaxTimeoutCount {
 				close()
 				//心跳超时
 				c.Reconnect()
 				return
 			}
 			//时间到，发送心跳包
-			c.sendHeartbeat(&pb.HeartbeatReq{})
+			c.sendHeartbeat()
 		}
 	}
 }
@@ -188,44 +185,37 @@ func (c *Client) getPid() uint32 {
 	return atomic.AddUint32(&c.pid, 1)
 }
 
-func (c *Client) handler(packerBase *pb.NetPacketBase, protoBase proto.Message, message proto.Message) {
-	switch packerBase.Packet.ProtoType {
+func (c *Client) handler(head *pb.HeadPack, body proto.Message) {
+	switch head.ProtoType {
 	case pb.ProtoType_PROTO_TYPE_RESPONSE:
-		responseBase, ok := protoBase.(*pb.NetResponseBase)
-		if !ok {
-			return
-		}
-		c.responseHandler(responseBase, message)
+		c.responseHandler(head, body)
 	case pb.ProtoType_PROTO_TYPE_PUSH:
-		pushBase, ok := protoBase.(*pb.NetPushBase)
-		if !ok {
-			return
-		}
-		c.pushHandler(pushBase, message)
+		c.pushHandler(head, body)
 	}
 }
 
-func (c *Client) responseHandler(responseBase *pb.NetResponseBase, message proto.Message) {
-	if responseBase.Response.Code != 200 {
-		fmt.Println("request failed:", responseBase.Response)
+func (c *Client) responseHandler(head *pb.HeadPack, body proto.Message) {
+	if head.Code != pb.ResponseCodeSuccess {
+		fmt.Println("request failed:", head)
 	}
-	if responseBase.Response.OpType == pb.OpType_OP_TYPE_HEARTBEAT {
+	opType := pb.OpType(head.Type)
+	if opType == pb.OpType_OP_TYPE_HEARTBEAT {
 		c.rspHeartbeat()
 	} else {
-		router, ok := c.responseRouter[responseBase.Response.OpType]
+		router, ok := c.responseRouter[opType]
 		if !ok || router == nil {
 			return
 		}
-		router(responseBase, message)
+		router(head, body)
 	}
 }
 
-func (c *Client) pushHandler(pushBase *pb.NetPushBase, message proto.Message) {
-	router, ok := c.pushRouter[pushBase.Push.PushType]
+func (c *Client) pushHandler(head *pb.HeadPack, body proto.Message) {
+	router, ok := c.pushRouter[pb.PushType(head.Type)]
 	if !ok || router == nil {
 		return
 	}
-	router(pushBase, message)
+	router(body)
 }
 
 //Response router
@@ -235,8 +225,6 @@ func (c *Client) rspHeartbeat() {
 }
 
 //Send
-func (c *Client) sendHeartbeat(req *pb.HeartbeatReq) {
-	req.Packet = protopack.NewNetRequestPacket()
-	req.Request = protopack.NewNetRequest(c.getPid(), pb.OpType_OP_TYPE_HEARTBEAT)
-	c.SendMessage(req)
+func (c *Client) sendHeartbeat() {
+	c.SendMessage(c.NewRequestHead(pb.OpType_OP_TYPE_HEARTBEAT), &pb.HeartbeatReq{})
 }

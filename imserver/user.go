@@ -21,7 +21,7 @@ type User struct {
 	online          uint32
 	serverInterface ServerInterface
 	pid             uint32
-	requestRouter   map[pb.OpType]func(*pb.NetRequestBase, proto.Message)
+	requestRouter   map[pb.OpType]func(*pb.HeadPack, proto.Message)
 }
 
 func NewUser(conn net.Conn, serverInterface ServerInterface) *User {
@@ -41,7 +41,7 @@ func NewUser(conn net.Conn, serverInterface ServerInterface) *User {
 }
 
 func (u *User) initRouter() {
-	u.requestRouter = make(map[pb.OpType]func(*pb.NetRequestBase, proto.Message), 5)
+	u.requestRouter = make(map[pb.OpType]func(*pb.HeadPack, proto.Message), 5)
 	u.requestRouter[pb.OpType_OP_TYPE_HEARTBEAT] = u.reqHeartbeat
 	u.requestRouter[pb.OpType_OP_TYPE_BROADCAST] = u.reqBroadcast
 	u.requestRouter[pb.OpType_OP_TYPE_QUERY] = u.reqQuery
@@ -108,8 +108,8 @@ func (u *User) offline() {
 
 func (u *User) readRemote() {
 	for {
-		packetBase, protoBase, message, err := protopack.Decode(u.conn)
-		if errors.Is(err, protopack.ErrUnknownProtoType) || errors.Is(err, protopack.ErrUnknownOpType) || errors.Is(err, protopack.ErrUnknownPushType) {
+		head, body, err := protopack.Decode(u.conn)
+		if errors.Is(err, protopack.ErrProtoPack) {
 			fmt.Println("conn read error:", err, u)
 			continue
 		}
@@ -120,7 +120,7 @@ func (u *User) readRemote() {
 			return
 		}
 		u.aliveChan <- struct{}{}
-		u.requestHandler(packetBase, protoBase, message)
+		u.requestHandler(head, body)
 	}
 }
 
@@ -142,29 +142,22 @@ func (u *User) listenTimeout() {
 			}
 			//超时被踢
 			//Close conn之后Read会error，从而触发offline
-			bytes, _ := protopack.Encode(&pb.KickPush{
-				Packet: protopack.NewNetPushPacket(),
-				Push:   protopack.NewNetPush(pb.PushType_PUSH_TYPE_KICK),
-			})
+			bytes, _ := protopack.Encode(protopack.NewPushHead(pb.PushType_PUSH_TYPE_KICK), &pb.KickPush{})
 			u.SendMessage(bytes)
 			u.conn.Close()
 		}
 	}
 }
 
-func (u *User) requestHandler(packerBase *pb.NetPacketBase, protoBase proto.Message, message proto.Message) {
-	if packerBase.Packet.ProtoType != pb.ProtoType_PROTO_TYPE_REQUEST {
+func (u *User) requestHandler(reqHead *pb.HeadPack, reqBody proto.Message) {
+	if reqHead.ProtoType != pb.ProtoType_PROTO_TYPE_REQUEST {
 		return
 	}
-	requestBase, ok := protoBase.(*pb.NetRequestBase)
-	if !ok {
-		return
-	}
-	router, ok := u.requestRouter[requestBase.Request.OpType]
+	router, ok := u.requestRouter[pb.OpType(reqHead.Type)]
 	if !ok || router == nil {
 		return
 	}
-	router(requestBase, message)
+	router(reqHead, reqBody)
 }
 
 func (u *User) broadcast(broadcastPush *pb.BroadcastPush) {
@@ -200,81 +193,75 @@ func (u *User) getPid() uint32 {
 }
 
 //Router
-func (u *User) reqHeartbeat(requestBase *pb.NetRequestBase, message proto.Message) {
-	bytes, _ := protopack.Encode(&pb.HeartbeatRsp{
-		Packet:   protopack.NewNetResponsePacket(),
-		Response: protopack.NewNetResponse(requestBase.Request.Pid, pb.OpType_OP_TYPE_HEARTBEAT, 200, ""),
-	})
+func (u *User) reqHeartbeat(reqHead *pb.HeadPack, reqBody proto.Message) {
+	bytes, _ := protopack.Encode(
+		protopack.NewResponseHead(reqHead.Pid, pb.OpType_OP_TYPE_HEARTBEAT, pb.ResponseCodeSuccess),
+		&pb.HeartbeatRsp{})
 	//response
 	u.SendMessage(bytes)
 }
 
-func (u *User) reqBroadcast(requestBase *pb.NetRequestBase, message proto.Message) {
-	request, ok := message.(*pb.BroadcastReq)
+func (u *User) reqBroadcast(reqHead *pb.HeadPack, reqBody proto.Message) {
+	request, ok := reqBody.(*pb.BroadcastReq)
 	if !ok {
 		return
 	}
-	bytes, _ := protopack.Encode(&pb.BroadcastRsp{
-		Packet:   protopack.NewNetResponsePacket(),
-		Response: protopack.NewNetResponse(requestBase.Request.Pid, pb.OpType_OP_TYPE_BROADCAST, 200, ""),
-	})
+	bytes, _ := protopack.Encode(
+		protopack.NewResponseHead(reqHead.Pid, pb.OpType_OP_TYPE_BROADCAST, pb.ResponseCodeSuccess),
+		&pb.BroadcastRsp{})
 	//response
 	u.SendMessage(bytes)
 	//push
 	u.broadcast(&pb.BroadcastPush{
-		Packet:  protopack.NewNetPushPacket(),
-		Push:    protopack.NewNetPush(pb.PushType_PUSH_TYPE_BROADCAST),
 		User:    u.String(),
 		Content: request.Content,
 	})
 }
 
-func (u *User) reqQuery(requestBase *pb.NetRequestBase, message proto.Message) {
-	bytes, _ := protopack.Encode(&pb.QueryRsp{
-		Packet:   protopack.NewNetResponsePacket(),
-		Response: protopack.NewNetResponse(requestBase.Request.Pid, pb.OpType_OP_TYPE_QUERY, 200, ""),
-		Users:    u.serverInterface.Query(),
-	})
+func (u *User) reqQuery(reqHead *pb.HeadPack, reqBody proto.Message) {
+	bytes, _ := protopack.Encode(
+		protopack.NewResponseHead(reqHead.Pid, pb.OpType_OP_TYPE_QUERY, pb.ResponseCodeSuccess),
+		&pb.QueryRsp{
+			Users: u.serverInterface.Query(),
+		})
 	//response
 	u.SendMessage(bytes)
 }
 
-func (u *User) reqRename(requestBase *pb.NetRequestBase, message proto.Message) {
-	request, ok := message.(*pb.RenameReq)
+func (u *User) reqRename(reqHead *pb.HeadPack, reqBody proto.Message) {
+	request, ok := reqBody.(*pb.RenameReq)
 	if !ok {
 		return
 	}
 	ok = u.serverInterface.Rename(u, request.NewName)
 
-	response := &pb.RenameRsp{
-		Packet: protopack.NewNetResponsePacket(),
-	}
+	var head *pb.HeadPack
+	body := &pb.RenameRsp{}
 	if ok {
-		response.Response = protopack.NewNetResponse(requestBase.Request.Pid, pb.OpType_OP_TYPE_RENAME, 200, "")
-		response.NewName = request.NewName
+		head = protopack.NewResponseHead(reqHead.Pid, pb.OpType_OP_TYPE_RENAME, pb.ResponseCodeSuccess)
+		body.NewName = request.NewName
 	} else {
-		response.Response = protopack.NewNetResponse(requestBase.Request.Pid, pb.OpType_OP_TYPE_RENAME, 500, "改名失败，名字重复："+request.NewName)
+		head = protopack.NewResponseHead(reqHead.Pid, pb.OpType_OP_TYPE_RENAME, pb.RenameError)
 	}
-	bytes, _ := protopack.Encode(response)
+	bytes, _ := protopack.Encode(head, body)
 	//response
 	u.SendMessage(bytes)
 }
 
-func (u *User) reqPrivateChat(requestBase *pb.NetRequestBase, message proto.Message) {
-	request, ok := message.(*pb.PrivateChatReq)
+func (u *User) reqPrivateChat(reqHead *pb.HeadPack, reqBody proto.Message) {
+	request, ok := reqBody.(*pb.PrivateChatReq)
 	if !ok {
 		return
 	}
 	err := u.serverInterface.PrivateChat(u, request.User, request.Content)
-	response := &pb.PrivateChatRsp{
-		Packet: protopack.NewNetResponsePacket(),
-	}
+	var head *pb.HeadPack
+	body := &pb.PrivateChatRsp{}
 	if err == nil {
-		response.Response = protopack.NewNetResponse(requestBase.Request.Pid, pb.OpType_OP_TYPE_PRIVATE_CHAT, 200, "")
+		head = protopack.NewResponseHead(reqHead.Pid, pb.OpType_OP_TYPE_PRIVATE_CHAT, pb.ResponseCodeSuccess)
 	} else {
-		response.Response = protopack.NewNetResponse(requestBase.Request.Pid, pb.OpType_OP_TYPE_PRIVATE_CHAT, 500, err.Error())
+		head = protopack.NewResponseHead(reqHead.Pid, pb.OpType_OP_TYPE_PRIVATE_CHAT, pb.ChatUserError)
 	}
-	bytes, _ := protopack.Encode(response)
+	bytes, _ := protopack.Encode(head, body)
 	//response
 	u.SendMessage(bytes)
 }

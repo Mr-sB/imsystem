@@ -73,129 +73,19 @@ func (ProtoType) EnumDescriptor() ([]byte, []int) {
 	return file_net_packet_proto_rawDescGZIP(), []int{0}
 }
 
-//请求/响应类型
-type OpType int32
-
-const (
-	OpType_OP_TYPE_UNKNOWN      OpType = 0
-	OpType_OP_TYPE_HEARTBEAT    OpType = 1
-	OpType_OP_TYPE_BROADCAST    OpType = 2
-	OpType_OP_TYPE_QUERY        OpType = 3
-	OpType_OP_TYPE_RENAME       OpType = 4
-	OpType_OP_TYPE_PRIVATE_CHAT OpType = 5
-)
-
-// Enum value maps for OpType.
-var (
-	OpType_name = map[int32]string{
-		0: "OP_TYPE_UNKNOWN",
-		1: "OP_TYPE_HEARTBEAT",
-		2: "OP_TYPE_BROADCAST",
-		3: "OP_TYPE_QUERY",
-		4: "OP_TYPE_RENAME",
-		5: "OP_TYPE_PRIVATE_CHAT",
-	}
-	OpType_value = map[string]int32{
-		"OP_TYPE_UNKNOWN":      0,
-		"OP_TYPE_HEARTBEAT":    1,
-		"OP_TYPE_BROADCAST":    2,
-		"OP_TYPE_QUERY":        3,
-		"OP_TYPE_RENAME":       4,
-		"OP_TYPE_PRIVATE_CHAT": 5,
-	}
-)
-
-func (x OpType) Enum() *OpType {
-	p := new(OpType)
-	*p = x
-	return p
-}
-
-func (x OpType) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (OpType) Descriptor() protoreflect.EnumDescriptor {
-	return file_net_packet_proto_enumTypes[1].Descriptor()
-}
-
-func (OpType) Type() protoreflect.EnumType {
-	return &file_net_packet_proto_enumTypes[1]
-}
-
-func (x OpType) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use OpType.Descriptor instead.
-func (OpType) EnumDescriptor() ([]byte, []int) {
-	return file_net_packet_proto_rawDescGZIP(), []int{1}
-}
-
-//推送类型
-type PushType int32
-
-const (
-	PushType_PUSH_TYPE_UNKNOWN      PushType = 0
-	PushType_PUSH_TYPE_KICK         PushType = 1
-	PushType_PUSH_TYPE_BROADCAST    PushType = 2
-	PushType_PUSH_TYPE_PRIVATE_CHAT PushType = 3
-)
-
-// Enum value maps for PushType.
-var (
-	PushType_name = map[int32]string{
-		0: "PUSH_TYPE_UNKNOWN",
-		1: "PUSH_TYPE_KICK",
-		2: "PUSH_TYPE_BROADCAST",
-		3: "PUSH_TYPE_PRIVATE_CHAT",
-	}
-	PushType_value = map[string]int32{
-		"PUSH_TYPE_UNKNOWN":      0,
-		"PUSH_TYPE_KICK":         1,
-		"PUSH_TYPE_BROADCAST":    2,
-		"PUSH_TYPE_PRIVATE_CHAT": 3,
-	}
-)
-
-func (x PushType) Enum() *PushType {
-	p := new(PushType)
-	*p = x
-	return p
-}
-
-func (x PushType) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (PushType) Descriptor() protoreflect.EnumDescriptor {
-	return file_net_packet_proto_enumTypes[2].Descriptor()
-}
-
-func (PushType) Type() protoreflect.EnumType {
-	return &file_net_packet_proto_enumTypes[2]
-}
-
-func (x PushType) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use PushType.Descriptor instead.
-func (PushType) EnumDescriptor() ([]byte, []int) {
-	return file_net_packet_proto_rawDescGZIP(), []int{2}
-}
-
-//所有message都需要包含这个message为 1 字段
-type NetPacket struct {
+type HeadPack struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
 	ProtoType ProtoType `protobuf:"varint,1,opt,name=proto_type,json=protoType,proto3,enum=pb.ProtoType" json:"proto_type,omitempty"`
+	Pid       uint32    `protobuf:"varint,2,opt,name=pid,proto3" json:"pid,omitempty"` //消息唯一id(请求、响应才会有)
+	Type      uint32    `protobuf:"varint,3,opt,name=type,proto3" json:"type,omitempty"`
+	Code      uint32    `protobuf:"varint,4,opt,name=code,proto3" json:"code,omitempty"`
 }
 
-func (x *NetPacket) Reset() {
-	*x = NetPacket{}
+func (x *HeadPack) Reset() {
+	*x = HeadPack{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_net_packet_proto_msgTypes[0]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -203,13 +93,13 @@ func (x *NetPacket) Reset() {
 	}
 }
 
-func (x *NetPacket) String() string {
+func (x *HeadPack) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*NetPacket) ProtoMessage() {}
+func (*HeadPack) ProtoMessage() {}
 
-func (x *NetPacket) ProtoReflect() protoreflect.Message {
+func (x *HeadPack) ProtoReflect() protoreflect.Message {
 	mi := &file_net_packet_proto_msgTypes[0]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -221,445 +111,59 @@ func (x *NetPacket) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use NetPacket.ProtoReflect.Descriptor instead.
-func (*NetPacket) Descriptor() ([]byte, []int) {
+// Deprecated: Use HeadPack.ProtoReflect.Descriptor instead.
+func (*HeadPack) Descriptor() ([]byte, []int) {
 	return file_net_packet_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *NetPacket) GetProtoType() ProtoType {
+func (x *HeadPack) GetProtoType() ProtoType {
 	if x != nil {
 		return x.ProtoType
 	}
 	return ProtoType_PROTO_TYPE_UNKNOWN
 }
 
-//用这个message去解析所有的bytes，然后根据pack再解析为具体的message
-//作为一个单独的message好解析所有的message，不然每个message都需要包含所有的NetPacket字段，难以书写
-type NetPacketBase struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Packet *NetPacket `protobuf:"bytes,1,opt,name=packet,proto3" json:"packet,omitempty"`
-}
-
-func (x *NetPacketBase) Reset() {
-	*x = NetPacketBase{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_net_packet_proto_msgTypes[1]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *NetPacketBase) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*NetPacketBase) ProtoMessage() {}
-
-func (x *NetPacketBase) ProtoReflect() protoreflect.Message {
-	mi := &file_net_packet_proto_msgTypes[1]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use NetPacketBase.ProtoReflect.Descriptor instead.
-func (*NetPacketBase) Descriptor() ([]byte, []int) {
-	return file_net_packet_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *NetPacketBase) GetPacket() *NetPacket {
-	if x != nil {
-		return x.Packet
-	}
-	return nil
-}
-
-//所有的request都包含这个message为 2 字段
-type NetRequest struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Pid    uint32 `protobuf:"varint,1,opt,name=pid,proto3" json:"pid,omitempty"` //消息唯一id
-	OpType OpType `protobuf:"varint,2,opt,name=op_type,json=opType,proto3,enum=pb.OpType" json:"op_type,omitempty"`
-}
-
-func (x *NetRequest) Reset() {
-	*x = NetRequest{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_net_packet_proto_msgTypes[2]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *NetRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*NetRequest) ProtoMessage() {}
-
-func (x *NetRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_net_packet_proto_msgTypes[2]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use NetRequest.ProtoReflect.Descriptor instead.
-func (*NetRequest) Descriptor() ([]byte, []int) {
-	return file_net_packet_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *NetRequest) GetPid() uint32 {
+func (x *HeadPack) GetPid() uint32 {
 	if x != nil {
 		return x.Pid
 	}
 	return 0
 }
 
-func (x *NetRequest) GetOpType() OpType {
+func (x *HeadPack) GetType() uint32 {
 	if x != nil {
-		return x.OpType
-	}
-	return OpType_OP_TYPE_UNKNOWN
-}
-
-type NetRequestBase struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Request *NetRequest `protobuf:"bytes,2,opt,name=request,proto3" json:"request,omitempty"`
-}
-
-func (x *NetRequestBase) Reset() {
-	*x = NetRequestBase{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_net_packet_proto_msgTypes[3]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *NetRequestBase) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*NetRequestBase) ProtoMessage() {}
-
-func (x *NetRequestBase) ProtoReflect() protoreflect.Message {
-	mi := &file_net_packet_proto_msgTypes[3]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use NetRequestBase.ProtoReflect.Descriptor instead.
-func (*NetRequestBase) Descriptor() ([]byte, []int) {
-	return file_net_packet_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *NetRequestBase) GetRequest() *NetRequest {
-	if x != nil {
-		return x.Request
-	}
-	return nil
-}
-
-//所有的response都包含这个message为 2 字段
-type NetResponse struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Pid    uint32 `protobuf:"varint,1,opt,name=pid,proto3" json:"pid,omitempty"` //消息唯一id
-	OpType OpType `protobuf:"varint,2,opt,name=op_type,json=opType,proto3,enum=pb.OpType" json:"op_type,omitempty"`
-	Code   uint32 `protobuf:"varint,3,opt,name=code,proto3" json:"code,omitempty"`
-	Msg    string `protobuf:"bytes,4,opt,name=msg,proto3" json:"msg,omitempty"` //code不为success时可能的提示消息
-}
-
-func (x *NetResponse) Reset() {
-	*x = NetResponse{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_net_packet_proto_msgTypes[4]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *NetResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*NetResponse) ProtoMessage() {}
-
-func (x *NetResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_net_packet_proto_msgTypes[4]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use NetResponse.ProtoReflect.Descriptor instead.
-func (*NetResponse) Descriptor() ([]byte, []int) {
-	return file_net_packet_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *NetResponse) GetPid() uint32 {
-	if x != nil {
-		return x.Pid
+		return x.Type
 	}
 	return 0
 }
 
-func (x *NetResponse) GetOpType() OpType {
-	if x != nil {
-		return x.OpType
-	}
-	return OpType_OP_TYPE_UNKNOWN
-}
-
-func (x *NetResponse) GetCode() uint32 {
+func (x *HeadPack) GetCode() uint32 {
 	if x != nil {
 		return x.Code
 	}
 	return 0
 }
 
-func (x *NetResponse) GetMsg() string {
-	if x != nil {
-		return x.Msg
-	}
-	return ""
-}
-
-type NetResponseBase struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Response *NetResponse `protobuf:"bytes,2,opt,name=response,proto3" json:"response,omitempty"`
-}
-
-func (x *NetResponseBase) Reset() {
-	*x = NetResponseBase{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_net_packet_proto_msgTypes[5]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *NetResponseBase) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*NetResponseBase) ProtoMessage() {}
-
-func (x *NetResponseBase) ProtoReflect() protoreflect.Message {
-	mi := &file_net_packet_proto_msgTypes[5]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use NetResponseBase.ProtoReflect.Descriptor instead.
-func (*NetResponseBase) Descriptor() ([]byte, []int) {
-	return file_net_packet_proto_rawDescGZIP(), []int{5}
-}
-
-func (x *NetResponseBase) GetResponse() *NetResponse {
-	if x != nil {
-		return x.Response
-	}
-	return nil
-}
-
-//所有的push都包含这个message为 2 字段
-type NetPush struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	PushType PushType `protobuf:"varint,1,opt,name=push_type,json=pushType,proto3,enum=pb.PushType" json:"push_type,omitempty"`
-}
-
-func (x *NetPush) Reset() {
-	*x = NetPush{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_net_packet_proto_msgTypes[6]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *NetPush) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*NetPush) ProtoMessage() {}
-
-func (x *NetPush) ProtoReflect() protoreflect.Message {
-	mi := &file_net_packet_proto_msgTypes[6]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use NetPush.ProtoReflect.Descriptor instead.
-func (*NetPush) Descriptor() ([]byte, []int) {
-	return file_net_packet_proto_rawDescGZIP(), []int{6}
-}
-
-func (x *NetPush) GetPushType() PushType {
-	if x != nil {
-		return x.PushType
-	}
-	return PushType_PUSH_TYPE_UNKNOWN
-}
-
-type NetPushBase struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Push *NetPush `protobuf:"bytes,2,opt,name=push,proto3" json:"push,omitempty"`
-}
-
-func (x *NetPushBase) Reset() {
-	*x = NetPushBase{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_net_packet_proto_msgTypes[7]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *NetPushBase) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*NetPushBase) ProtoMessage() {}
-
-func (x *NetPushBase) ProtoReflect() protoreflect.Message {
-	mi := &file_net_packet_proto_msgTypes[7]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use NetPushBase.ProtoReflect.Descriptor instead.
-func (*NetPushBase) Descriptor() ([]byte, []int) {
-	return file_net_packet_proto_rawDescGZIP(), []int{7}
-}
-
-func (x *NetPushBase) GetPush() *NetPush {
-	if x != nil {
-		return x.Push
-	}
-	return nil
-}
-
 var File_net_packet_proto protoreflect.FileDescriptor
 
 var file_net_packet_proto_rawDesc = []byte{
 	0x0a, 0x10, 0x6e, 0x65, 0x74, 0x2d, 0x70, 0x61, 0x63, 0x6b, 0x65, 0x74, 0x2e, 0x70, 0x72, 0x6f,
-	0x74, 0x6f, 0x12, 0x02, 0x70, 0x62, 0x22, 0x39, 0x0a, 0x09, 0x4e, 0x65, 0x74, 0x50, 0x61, 0x63,
-	0x6b, 0x65, 0x74, 0x12, 0x2c, 0x0a, 0x0a, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x5f, 0x74, 0x79, 0x70,
-	0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x0d, 0x2e, 0x70, 0x62, 0x2e, 0x50, 0x72, 0x6f,
-	0x74, 0x6f, 0x54, 0x79, 0x70, 0x65, 0x52, 0x09, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x54, 0x79, 0x70,
-	0x65, 0x22, 0x36, 0x0a, 0x0d, 0x4e, 0x65, 0x74, 0x50, 0x61, 0x63, 0x6b, 0x65, 0x74, 0x42, 0x61,
-	0x73, 0x65, 0x12, 0x25, 0x0a, 0x06, 0x70, 0x61, 0x63, 0x6b, 0x65, 0x74, 0x18, 0x01, 0x20, 0x01,
-	0x28, 0x0b, 0x32, 0x0d, 0x2e, 0x70, 0x62, 0x2e, 0x4e, 0x65, 0x74, 0x50, 0x61, 0x63, 0x6b, 0x65,
-	0x74, 0x52, 0x06, 0x70, 0x61, 0x63, 0x6b, 0x65, 0x74, 0x22, 0x43, 0x0a, 0x0a, 0x4e, 0x65, 0x74,
-	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x10, 0x0a, 0x03, 0x70, 0x69, 0x64, 0x18, 0x01,
-	0x20, 0x01, 0x28, 0x0d, 0x52, 0x03, 0x70, 0x69, 0x64, 0x12, 0x23, 0x0a, 0x07, 0x6f, 0x70, 0x5f,
-	0x74, 0x79, 0x70, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x0a, 0x2e, 0x70, 0x62, 0x2e,
-	0x4f, 0x70, 0x54, 0x79, 0x70, 0x65, 0x52, 0x06, 0x6f, 0x70, 0x54, 0x79, 0x70, 0x65, 0x22, 0x3a,
-	0x0a, 0x0e, 0x4e, 0x65, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x42, 0x61, 0x73, 0x65,
-	0x12, 0x28, 0x0a, 0x07, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x18, 0x02, 0x20, 0x01, 0x28,
-	0x0b, 0x32, 0x0e, 0x2e, 0x70, 0x62, 0x2e, 0x4e, 0x65, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
-	0x74, 0x52, 0x07, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x22, 0x6a, 0x0a, 0x0b, 0x4e, 0x65,
-	0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x10, 0x0a, 0x03, 0x70, 0x69, 0x64,
-	0x18, 0x01, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x03, 0x70, 0x69, 0x64, 0x12, 0x23, 0x0a, 0x07, 0x6f,
-	0x70, 0x5f, 0x74, 0x79, 0x70, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x0a, 0x2e, 0x70,
-	0x62, 0x2e, 0x4f, 0x70, 0x54, 0x79, 0x70, 0x65, 0x52, 0x06, 0x6f, 0x70, 0x54, 0x79, 0x70, 0x65,
-	0x12, 0x12, 0x0a, 0x04, 0x63, 0x6f, 0x64, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x04,
-	0x63, 0x6f, 0x64, 0x65, 0x12, 0x10, 0x0a, 0x03, 0x6d, 0x73, 0x67, 0x18, 0x04, 0x20, 0x01, 0x28,
-	0x09, 0x52, 0x03, 0x6d, 0x73, 0x67, 0x22, 0x3e, 0x0a, 0x0f, 0x4e, 0x65, 0x74, 0x52, 0x65, 0x73,
-	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42, 0x61, 0x73, 0x65, 0x12, 0x2b, 0x0a, 0x08, 0x72, 0x65, 0x73,
-	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x0f, 0x2e, 0x70, 0x62,
-	0x2e, 0x4e, 0x65, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x52, 0x08, 0x72, 0x65,
-	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x34, 0x0a, 0x07, 0x4e, 0x65, 0x74, 0x50, 0x75, 0x73,
-	0x68, 0x12, 0x29, 0x0a, 0x09, 0x70, 0x75, 0x73, 0x68, 0x5f, 0x74, 0x79, 0x70, 0x65, 0x18, 0x01,
-	0x20, 0x01, 0x28, 0x0e, 0x32, 0x0c, 0x2e, 0x70, 0x62, 0x2e, 0x50, 0x75, 0x73, 0x68, 0x54, 0x79,
-	0x70, 0x65, 0x52, 0x08, 0x70, 0x75, 0x73, 0x68, 0x54, 0x79, 0x70, 0x65, 0x22, 0x2e, 0x0a, 0x0b,
-	0x4e, 0x65, 0x74, 0x50, 0x75, 0x73, 0x68, 0x42, 0x61, 0x73, 0x65, 0x12, 0x1f, 0x0a, 0x04, 0x70,
-	0x75, 0x73, 0x68, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x0b, 0x2e, 0x70, 0x62, 0x2e, 0x4e,
-	0x65, 0x74, 0x50, 0x75, 0x73, 0x68, 0x52, 0x04, 0x70, 0x75, 0x73, 0x68, 0x2a, 0x69, 0x0a, 0x09,
-	0x50, 0x72, 0x6f, 0x74, 0x6f, 0x54, 0x79, 0x70, 0x65, 0x12, 0x16, 0x0a, 0x12, 0x50, 0x52, 0x4f,
-	0x54, 0x4f, 0x5f, 0x54, 0x59, 0x50, 0x45, 0x5f, 0x55, 0x4e, 0x4b, 0x4e, 0x4f, 0x57, 0x4e, 0x10,
-	0x00, 0x12, 0x16, 0x0a, 0x12, 0x50, 0x52, 0x4f, 0x54, 0x4f, 0x5f, 0x54, 0x59, 0x50, 0x45, 0x5f,
-	0x52, 0x45, 0x51, 0x55, 0x45, 0x53, 0x54, 0x10, 0x01, 0x12, 0x17, 0x0a, 0x13, 0x50, 0x52, 0x4f,
-	0x54, 0x4f, 0x5f, 0x54, 0x59, 0x50, 0x45, 0x5f, 0x52, 0x45, 0x53, 0x50, 0x4f, 0x4e, 0x53, 0x45,
-	0x10, 0x02, 0x12, 0x13, 0x0a, 0x0f, 0x50, 0x52, 0x4f, 0x54, 0x4f, 0x5f, 0x54, 0x59, 0x50, 0x45,
-	0x5f, 0x50, 0x55, 0x53, 0x48, 0x10, 0x03, 0x2a, 0x8c, 0x01, 0x0a, 0x06, 0x4f, 0x70, 0x54, 0x79,
-	0x70, 0x65, 0x12, 0x13, 0x0a, 0x0f, 0x4f, 0x50, 0x5f, 0x54, 0x59, 0x50, 0x45, 0x5f, 0x55, 0x4e,
-	0x4b, 0x4e, 0x4f, 0x57, 0x4e, 0x10, 0x00, 0x12, 0x15, 0x0a, 0x11, 0x4f, 0x50, 0x5f, 0x54, 0x59,
-	0x50, 0x45, 0x5f, 0x48, 0x45, 0x41, 0x52, 0x54, 0x42, 0x45, 0x41, 0x54, 0x10, 0x01, 0x12, 0x15,
-	0x0a, 0x11, 0x4f, 0x50, 0x5f, 0x54, 0x59, 0x50, 0x45, 0x5f, 0x42, 0x52, 0x4f, 0x41, 0x44, 0x43,
-	0x41, 0x53, 0x54, 0x10, 0x02, 0x12, 0x11, 0x0a, 0x0d, 0x4f, 0x50, 0x5f, 0x54, 0x59, 0x50, 0x45,
-	0x5f, 0x51, 0x55, 0x45, 0x52, 0x59, 0x10, 0x03, 0x12, 0x12, 0x0a, 0x0e, 0x4f, 0x50, 0x5f, 0x54,
-	0x59, 0x50, 0x45, 0x5f, 0x52, 0x45, 0x4e, 0x41, 0x4d, 0x45, 0x10, 0x04, 0x12, 0x18, 0x0a, 0x14,
-	0x4f, 0x50, 0x5f, 0x54, 0x59, 0x50, 0x45, 0x5f, 0x50, 0x52, 0x49, 0x56, 0x41, 0x54, 0x45, 0x5f,
-	0x43, 0x48, 0x41, 0x54, 0x10, 0x05, 0x2a, 0x6a, 0x0a, 0x08, 0x50, 0x75, 0x73, 0x68, 0x54, 0x79,
-	0x70, 0x65, 0x12, 0x15, 0x0a, 0x11, 0x50, 0x55, 0x53, 0x48, 0x5f, 0x54, 0x59, 0x50, 0x45, 0x5f,
-	0x55, 0x4e, 0x4b, 0x4e, 0x4f, 0x57, 0x4e, 0x10, 0x00, 0x12, 0x12, 0x0a, 0x0e, 0x50, 0x55, 0x53,
-	0x48, 0x5f, 0x54, 0x59, 0x50, 0x45, 0x5f, 0x4b, 0x49, 0x43, 0x4b, 0x10, 0x01, 0x12, 0x17, 0x0a,
-	0x13, 0x50, 0x55, 0x53, 0x48, 0x5f, 0x54, 0x59, 0x50, 0x45, 0x5f, 0x42, 0x52, 0x4f, 0x41, 0x44,
-	0x43, 0x41, 0x53, 0x54, 0x10, 0x02, 0x12, 0x1a, 0x0a, 0x16, 0x50, 0x55, 0x53, 0x48, 0x5f, 0x54,
-	0x59, 0x50, 0x45, 0x5f, 0x50, 0x52, 0x49, 0x56, 0x41, 0x54, 0x45, 0x5f, 0x43, 0x48, 0x41, 0x54,
-	0x10, 0x03, 0x42, 0x0d, 0x5a, 0x0b, 0x69, 0x6d, 0x73, 0x79, 0x73, 0x74, 0x65, 0x6d, 0x2f, 0x70,
-	0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x74, 0x6f, 0x12, 0x02, 0x70, 0x62, 0x22, 0x72, 0x0a, 0x08, 0x48, 0x65, 0x61, 0x64, 0x50, 0x61,
+	0x63, 0x6b, 0x12, 0x2c, 0x0a, 0x0a, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x5f, 0x74, 0x79, 0x70, 0x65,
+	0x18, 0x01, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x0d, 0x2e, 0x70, 0x62, 0x2e, 0x50, 0x72, 0x6f, 0x74,
+	0x6f, 0x54, 0x79, 0x70, 0x65, 0x52, 0x09, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x54, 0x79, 0x70, 0x65,
+	0x12, 0x10, 0x0a, 0x03, 0x70, 0x69, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x03, 0x70,
+	0x69, 0x64, 0x12, 0x12, 0x0a, 0x04, 0x74, 0x79, 0x70, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0d,
+	0x52, 0x04, 0x74, 0x79, 0x70, 0x65, 0x12, 0x12, 0x0a, 0x04, 0x63, 0x6f, 0x64, 0x65, 0x18, 0x04,
+	0x20, 0x01, 0x28, 0x0d, 0x52, 0x04, 0x63, 0x6f, 0x64, 0x65, 0x2a, 0x69, 0x0a, 0x09, 0x50, 0x72,
+	0x6f, 0x74, 0x6f, 0x54, 0x79, 0x70, 0x65, 0x12, 0x16, 0x0a, 0x12, 0x50, 0x52, 0x4f, 0x54, 0x4f,
+	0x5f, 0x54, 0x59, 0x50, 0x45, 0x5f, 0x55, 0x4e, 0x4b, 0x4e, 0x4f, 0x57, 0x4e, 0x10, 0x00, 0x12,
+	0x16, 0x0a, 0x12, 0x50, 0x52, 0x4f, 0x54, 0x4f, 0x5f, 0x54, 0x59, 0x50, 0x45, 0x5f, 0x52, 0x45,
+	0x51, 0x55, 0x45, 0x53, 0x54, 0x10, 0x01, 0x12, 0x17, 0x0a, 0x13, 0x50, 0x52, 0x4f, 0x54, 0x4f,
+	0x5f, 0x54, 0x59, 0x50, 0x45, 0x5f, 0x52, 0x45, 0x53, 0x50, 0x4f, 0x4e, 0x53, 0x45, 0x10, 0x02,
+	0x12, 0x13, 0x0a, 0x0f, 0x50, 0x52, 0x4f, 0x54, 0x4f, 0x5f, 0x54, 0x59, 0x50, 0x45, 0x5f, 0x50,
+	0x55, 0x53, 0x48, 0x10, 0x03, 0x42, 0x0d, 0x5a, 0x0b, 0x69, 0x6d, 0x73, 0x79, 0x73, 0x74, 0x65,
+	0x6d, 0x2f, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -674,35 +178,19 @@ func file_net_packet_proto_rawDescGZIP() []byte {
 	return file_net_packet_proto_rawDescData
 }
 
-var file_net_packet_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_net_packet_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_net_packet_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_net_packet_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_net_packet_proto_goTypes = []interface{}{
-	(ProtoType)(0),          // 0: pb.ProtoType
-	(OpType)(0),             // 1: pb.OpType
-	(PushType)(0),           // 2: pb.PushType
-	(*NetPacket)(nil),       // 3: pb.NetPacket
-	(*NetPacketBase)(nil),   // 4: pb.NetPacketBase
-	(*NetRequest)(nil),      // 5: pb.NetRequest
-	(*NetRequestBase)(nil),  // 6: pb.NetRequestBase
-	(*NetResponse)(nil),     // 7: pb.NetResponse
-	(*NetResponseBase)(nil), // 8: pb.NetResponseBase
-	(*NetPush)(nil),         // 9: pb.NetPush
-	(*NetPushBase)(nil),     // 10: pb.NetPushBase
+	(ProtoType)(0),   // 0: pb.ProtoType
+	(*HeadPack)(nil), // 1: pb.HeadPack
 }
 var file_net_packet_proto_depIdxs = []int32{
-	0, // 0: pb.NetPacket.proto_type:type_name -> pb.ProtoType
-	3, // 1: pb.NetPacketBase.packet:type_name -> pb.NetPacket
-	1, // 2: pb.NetRequest.op_type:type_name -> pb.OpType
-	5, // 3: pb.NetRequestBase.request:type_name -> pb.NetRequest
-	1, // 4: pb.NetResponse.op_type:type_name -> pb.OpType
-	7, // 5: pb.NetResponseBase.response:type_name -> pb.NetResponse
-	2, // 6: pb.NetPush.push_type:type_name -> pb.PushType
-	9, // 7: pb.NetPushBase.push:type_name -> pb.NetPush
-	8, // [8:8] is the sub-list for method output_type
-	8, // [8:8] is the sub-list for method input_type
-	8, // [8:8] is the sub-list for extension type_name
-	8, // [8:8] is the sub-list for extension extendee
-	0, // [0:8] is the sub-list for field type_name
+	0, // 0: pb.HeadPack.proto_type:type_name -> pb.ProtoType
+	1, // [1:1] is the sub-list for method output_type
+	1, // [1:1] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_net_packet_proto_init() }
@@ -712,91 +200,7 @@ func file_net_packet_proto_init() {
 	}
 	if !protoimpl.UnsafeEnabled {
 		file_net_packet_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*NetPacket); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_net_packet_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*NetPacketBase); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_net_packet_proto_msgTypes[2].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*NetRequest); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_net_packet_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*NetRequestBase); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_net_packet_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*NetResponse); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_net_packet_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*NetResponseBase); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_net_packet_proto_msgTypes[6].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*NetPush); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_net_packet_proto_msgTypes[7].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*NetPushBase); i {
+			switch v := v.(*HeadPack); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -813,8 +217,8 @@ func file_net_packet_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_net_packet_proto_rawDesc,
-			NumEnums:      3,
-			NumMessages:   8,
+			NumEnums:      1,
+			NumMessages:   1,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

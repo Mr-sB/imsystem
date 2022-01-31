@@ -4,14 +4,13 @@ import (
 	"fmt"
 	"google.golang.org/protobuf/proto"
 	"imsystem/pb"
-	"imsystem/protopack"
 	"strings"
 )
 
 type ClientView struct {
 	client         *Client
-	responseRouter map[pb.OpType]func(*pb.NetResponseBase, proto.Message)
-	pushRouter     map[pb.PushType]func(*pb.NetPushBase, proto.Message)
+	responseRouter map[pb.OpType]func(*pb.HeadPack, proto.Message)
+	pushRouter     map[pb.PushType]func(proto.Message)
 }
 
 func (c *ClientView) String() string {
@@ -27,8 +26,8 @@ func NewClientView(client *Client) *ClientView {
 }
 
 func(c *ClientView) initRouter() {
-	c.responseRouter = make(map[pb.OpType]func(*pb.NetResponseBase, proto.Message), 2)
-	c.pushRouter = make(map[pb.PushType]func(*pb.NetPushBase, proto.Message), 3)
+	c.responseRouter = make(map[pb.OpType]func(*pb.HeadPack, proto.Message), 2)
+	c.pushRouter = make(map[pb.PushType]func(proto.Message), 3)
 
 	c.responseRouter[pb.OpType_OP_TYPE_QUERY] = rspQuery
 	c.responseRouter[pb.OpType_OP_TYPE_RENAME] = rspRename
@@ -40,7 +39,7 @@ func(c *ClientView) initRouter() {
 	c.client.InitRouter(c.responseRouter, c.pushRouter)
 }
 
-func (c *ClientView) Start() bool {
+func (c *ClientView) Start() {
 	if !c.client.Connect(){
 		fmt.Println("连接失败，请重连")
 	}
@@ -53,6 +52,7 @@ func (c *ClientView) Start() bool {
 	fmt.Println("99.退出")
 
 	var mode int
+	mainLoop:
 	for{
 		fmt.Println("请输入模式:")
 		fmt.Scanln(&mode)
@@ -84,59 +84,47 @@ func (c *ClientView) Start() bool {
 		case 5:
 			c.client.Reconnect()
 		case 99:
-			break
+			c.client.Disconnect()
+			break mainLoop
 		}
 	}
 }
 
 //Send
-func (c *ClientView) SendHeartbeat(req *pb.HeartbeatReq) {
-	req.Packet = protopack.NewNetRequestPacket()
-	req.Request = c.client.NewNetRequest(pb.OpType_OP_TYPE_HEARTBEAT)
-	c.client.SendMessage(req)
+
+func (c *ClientView) SendBroadcast(body *pb.BroadcastReq) {
+	c.client.SendMessage(c.client.NewRequestHead(pb.OpType_OP_TYPE_BROADCAST), body)
 }
 
-func (c *ClientView) SendBroadcast(req *pb.BroadcastReq) {
-	req.Packet = protopack.NewNetRequestPacket()
-	req.Request = c.client.NewNetRequest(pb.OpType_OP_TYPE_BROADCAST)
-	c.client.SendMessage(req)
+func (c *ClientView) SendQuery(body *pb.QueryReq) {
+	c.client.SendMessage(c.client.NewRequestHead(pb.OpType_OP_TYPE_QUERY), body)
 }
 
-func (c *ClientView) SendQuery(req *pb.QueryReq) {
-	req.Packet = protopack.NewNetRequestPacket()
-	req.Request = c.client.NewNetRequest(pb.OpType_OP_TYPE_QUERY)
-	c.client.SendMessage(req)
+func (c *ClientView) SendRename(body *pb.RenameReq) {
+	c.client.SendMessage(c.client.NewRequestHead(pb.OpType_OP_TYPE_RENAME), body)
 }
 
-func (c *ClientView) SendRename(req *pb.RenameReq) {
-	req.Packet = protopack.NewNetRequestPacket()
-	req.Request = c.client.NewNetRequest(pb.OpType_OP_TYPE_RENAME)
-	c.client.SendMessage(req)
-}
-
-func (c *ClientView) SendPrivateChat(req *pb.PrivateChatReq) {
-	req.Packet = protopack.NewNetRequestPacket()
-	req.Request = c.client.NewNetRequest(pb.OpType_OP_TYPE_PRIVATE_CHAT)
-	c.client.SendMessage(req)
+func (c *ClientView) SendPrivateChat(body *pb.PrivateChatReq) {
+	c.client.SendMessage(c.client.NewRequestHead(pb.OpType_OP_TYPE_PRIVATE_CHAT), body)
 }
 
 //Response router
-func rspQuery(responseBase *pb.NetResponseBase, message proto.Message) {
-	if responseBase.Response.Code != 200 {
+func rspQuery(head *pb.HeadPack, body proto.Message) {
+	if head.Code != pb.ResponseCodeSuccess {
 		return
 	}
-	response, ok := message.(*pb.QueryRsp)
+	response, ok := body.(*pb.QueryRsp)
 	if !ok {
 		return
 	}
 	fmt.Println(strings.Join(response.Users, "\n"))
 }
 
-func rspRename(responseBase *pb.NetResponseBase, message proto.Message) {
-	if responseBase.Response.Code != 200 {
+func rspRename(head *pb.HeadPack, body proto.Message) {
+	if head.Code != pb.ResponseCodeSuccess {
 		return
 	}
-	response, ok := message.(*pb.RenameRsp)
+	response, ok := body.(*pb.RenameRsp)
 	if !ok {
 		return
 	}
@@ -144,20 +132,20 @@ func rspRename(responseBase *pb.NetResponseBase, message proto.Message) {
 }
 
 //Push router
-func pushKick(pushBase *pb.NetPushBase, message proto.Message) {
+func pushKick(body proto.Message) {
 	fmt.Println("kicked by server")
 }
 
-func pushBroadcast(pushBase *pb.NetPushBase, message proto.Message) {
-	push, ok := message.(*pb.BroadcastPush)
+func pushBroadcast(body proto.Message) {
+	push, ok := body.(*pb.BroadcastPush)
 	if !ok {
 		return
 	}
 	fmt.Println("广播:", push.User, push.Content)
 }
 
-func pushPrivateChat(pushBase *pb.NetPushBase, message proto.Message) {
-	push, ok := message.(*pb.PrivateChatPush)
+func pushPrivateChat(body proto.Message) {
+	push, ok := body.(*pb.PrivateChatPush)
 	if !ok {
 		return
 	}
