@@ -1,58 +1,118 @@
 package pack
 
 import (
-	"encoding/binary"
-	"errors"
+	"fmt"
+	"google.golang.org/protobuf/proto"
+	"imsystem/pb"
+	"imsystem/protopack"
 	"io"
 )
 
-const HeadLen = 4
-
 var (
-	ErrNilMessage  = errors.New("pack: nil message")
+	ErrUnknownProtoType = fmt.Errorf("unknown proto type: %w", protopack.ErrProtoPack)
+	ErrUnknownOpType    = fmt.Errorf("unknown op type: %w", protopack.ErrProtoPack)
+	ErrUnknownPushType  = fmt.Errorf("unknown push type: %w", protopack.ErrProtoPack)
+
+	unmarshalBodyRouter = map[pb.ProtoType]func(*pb.HeadPack, []byte) (proto.Message, error){
+		pb.ProtoType_PROTO_TYPE_REQUEST:  unmarshalRequest,
+		pb.ProtoType_PROTO_TYPE_RESPONSE: unmarshalResponse,
+		pb.ProtoType_PROTO_TYPE_PUSH:     unmarshalPush,
+	}
+	reqMessageCreator = map[pb.OpType]func() proto.Message{
+		pb.OpType_OP_TYPE_HEARTBEAT:    func() proto.Message { return new(pb.HeartbeatReq) },
+		pb.OpType_OP_TYPE_BROADCAST:    func() proto.Message { return new(pb.BroadcastReq) },
+		pb.OpType_OP_TYPE_QUERY:        func() proto.Message { return new(pb.QueryReq) },
+		pb.OpType_OP_TYPE_RENAME:       func() proto.Message { return new(pb.RenameReq) },
+		pb.OpType_OP_TYPE_PRIVATE_CHAT: func() proto.Message { return new(pb.PrivateChatReq) },
+	}
+	rspMessageCreator = map[pb.OpType]func() proto.Message{
+		pb.OpType_OP_TYPE_HEARTBEAT:    func() proto.Message { return new(pb.HeartbeatRsp) },
+		pb.OpType_OP_TYPE_BROADCAST:    func() proto.Message { return new(pb.BroadcastRsp) },
+		pb.OpType_OP_TYPE_QUERY:        func() proto.Message { return new(pb.QueryRsp) },
+		pb.OpType_OP_TYPE_RENAME:       func() proto.Message { return new(pb.RenameRsp) },
+		pb.OpType_OP_TYPE_PRIVATE_CHAT: func() proto.Message { return new(pb.PrivateChatRsp) },
+	}
+	pushMessageCreator = map[pb.PushType]func() proto.Message{
+		pb.PushType_PUSH_TYPE_KICK:         func() proto.Message { return new(pb.KickPush) },
+		pb.PushType_PUSH_TYPE_BROADCAST:    func() proto.Message { return new(pb.BroadcastPush) },
+		pb.PushType_PUSH_TYPE_PRIVATE_CHAT: func() proto.Message { return new(pb.PrivateChatPush) },
+	}
 )
 
-//TODO 对象池化slice，减少开销
-//TODO slice对象池可以按照一定的块大小做分层。例如8字节为单位区分不同的slice池
-
-func Encode(message []byte) []byte {
-	//消息长度
-	messageLen := uint32(len(message))
-	//包体
-	pkg := make([]byte, messageLen + HeadLen)
-	//写入消息长度
-	binary.LittleEndian.PutUint32(pkg, messageLen)
-	//复制消息内容
-	copy(pkg[HeadLen:], message)
-	return pkg
+func Encode(head *pb.HeadPack, body proto.Message) ([]byte, error) {
+	return protopack.Encode(head, body)
 }
 
-func EncodeString(message string) []byte {
-	return Encode([]byte(message))
-}
-
-func Decode(reader io.Reader) ([]byte, error) {
-	//读取消息长度
-	head := make([]byte, HeadLen)
-	_, err := io.ReadFull(reader, head)
+func Decode(reader io.Reader) (*pb.HeadPack, proto.Message, error) {
+	head, bodyBytes, err := protopack.Decode(reader)
 	if err != nil {
-		return nil, err
+		return head, nil, err
 	}
-	messageLen := binary.LittleEndian.Uint32(head)
-	//读取消息
-	message := make([]byte, messageLen)
-	_, err = io.ReadFull(reader, message)
-	//返回消息内容
+	//解析消息体
+	var body proto.Message = nil
+	router, ok := unmarshalBodyRouter[head.ProtoType]
+	if !ok {
+		err = ErrUnknownProtoType
+	} else {
+		body, err = router(head, bodyBytes)
+	}
+	return head, body, err
+}
+
+////////////////////
+
+func unmarshalRequest(head *pb.HeadPack, bytes []byte) (proto.Message, error) {
+	creator, ok := reqMessageCreator[pb.OpType(head.Type)]
+	if !ok {
+		return nil, ErrUnknownOpType
+	}
+	message := creator()
+	err := proto.Unmarshal(bytes, message)
 	return message, err
 }
 
-func DecodeString(reader io.Reader) (string, error) {
-	message, err := Decode(reader)
-	if err != nil {
-		return "", err
+func unmarshalResponse(head *pb.HeadPack, bytes []byte) (proto.Message, error) {
+	creator, ok := rspMessageCreator[pb.OpType(head.Type)]
+	if !ok {
+		return nil, ErrUnknownOpType
 	}
-	if message == nil {
-		return "", ErrNilMessage
+	message := creator()
+	err := proto.Unmarshal(bytes, message)
+	return message, err
+}
+
+func unmarshalPush(head *pb.HeadPack, bytes []byte) (proto.Message, error) {
+	creator, ok := pushMessageCreator[pb.PushType(head.Type)]
+	if !ok {
+		return nil, ErrUnknownOpType
 	}
-	return string(message), nil
+	message := creator()
+	err := proto.Unmarshal(bytes, message)
+	return message, err
+}
+
+////////////////////
+
+func NewRequestHead(pid uint32, opType pb.OpType) *pb.HeadPack {
+	return &pb.HeadPack{
+		ProtoType: pb.ProtoType_PROTO_TYPE_REQUEST,
+		Pid:       pid,
+		Type:      uint32(opType),
+	}
+}
+
+func NewResponseHead(pid uint32, opType pb.OpType, code uint32) *pb.HeadPack {
+	return &pb.HeadPack{
+		ProtoType: pb.ProtoType_PROTO_TYPE_RESPONSE,
+		Pid:       pid,
+		Type:      uint32(opType),
+		Code:      code,
+	}
+}
+
+func NewPushHead(pushType pb.PushType) *pb.HeadPack {
+	return &pb.HeadPack{
+		ProtoType: pb.ProtoType_PROTO_TYPE_PUSH,
+		Type:      uint32(pushType),
+	}
 }

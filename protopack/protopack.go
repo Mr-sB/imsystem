@@ -3,22 +3,18 @@ package protopack
 import (
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"google.golang.org/protobuf/proto"
 	"imsystem/pb"
 	"io"
 )
 
 const (
-	HeadLen  = 2 //比TotalLen小
+	HeadLen  = 2 //不大于TotalLen
 	TotalLen = 4
 )
 
 var (
 	ErrProtoPack        = errors.New("proto pack error")
-	ErrUnknownProtoType = fmt.Errorf("unknown proto type: %w", ErrProtoPack)
-	ErrUnknownOpType    = fmt.Errorf("unknown op type: %w", ErrProtoPack)
-	ErrUnknownPushType  = fmt.Errorf("unknown push type: %w", ErrProtoPack)
 )
 
 func Encode(head *pb.HeadPack, body proto.Message) ([]byte, error) {
@@ -47,7 +43,7 @@ func Encode(head *pb.HeadPack, body proto.Message) ([]byte, error) {
 	return message, nil
 }
 
-func Decode(reader io.Reader) (*pb.HeadPack, proto.Message, error) {
+func Decode(reader io.Reader) (*pb.HeadPack, []byte, error) {
 	//读取消息长度
 	bytes := make([]byte, TotalLen)
 	_, err := io.ReadFull(reader, bytes)
@@ -67,7 +63,7 @@ func Decode(reader io.Reader) (*pb.HeadPack, proto.Message, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	head := &pb.HeadPack{}
+	head := new(pb.HeadPack)
 	err = proto.Unmarshal(headBytes, head)
 	if err != nil {
 		return head, nil, err
@@ -75,128 +71,5 @@ func Decode(reader io.Reader) (*pb.HeadPack, proto.Message, error) {
 	//读取消息体
 	bodyBytes := make([]byte, totalLen-TotalLen-HeadLen-uint32(headLen))
 	_, err = io.ReadFull(reader, bodyBytes)
-	if err != nil {
-		return nil, nil, err
-	}
-	//解析消息体
-	var body proto.Message = nil
-	switch head.ProtoType {
-	case pb.ProtoType_PROTO_TYPE_UNKNOWN:
-		err = ErrUnknownProtoType
-	case pb.ProtoType_PROTO_TYPE_REQUEST:
-		//解析request
-		body, err = requestUnmarshal(head, bodyBytes)
-	case pb.ProtoType_PROTO_TYPE_RESPONSE:
-		//解析response
-		body, err = responseUnmarshal(head, bodyBytes)
-	case pb.ProtoType_PROTO_TYPE_PUSH:
-		//解析push
-		body, err = pushUnmarshal(head, bodyBytes)
-	}
-	return head, body, err
-}
-
-////////////////////
-
-func requestUnmarshal(head *pb.HeadPack, bytes []byte) (proto.Message, error) {
-	var message proto.Message = nil
-	var err error = nil
-	switch pb.OpType(head.Type) {
-	case pb.OpType_OP_TYPE_UNKNOWN:
-		err = ErrUnknownOpType
-	case pb.OpType_OP_TYPE_HEARTBEAT:
-		message = &pb.HeartbeatReq{}
-	case pb.OpType_OP_TYPE_BROADCAST:
-		message = &pb.BroadcastReq{}
-	case pb.OpType_OP_TYPE_QUERY:
-		message = &pb.QueryReq{}
-	case pb.OpType_OP_TYPE_RENAME:
-		message = &pb.RenameReq{}
-	case pb.OpType_OP_TYPE_PRIVATE_CHAT:
-		message = &pb.PrivateChatReq{}
-	}
-	if err != nil {
-		return message, err
-	}
-	if message == nil {
-		return nil, ErrUnknownOpType
-	}
-	err = proto.Unmarshal(bytes, message)
-	return message, err
-}
-
-func responseUnmarshal(head *pb.HeadPack, bytes []byte) (proto.Message, error) {
-	var message proto.Message = nil
-	var err error = nil
-	switch pb.OpType(head.Type) {
-	case pb.OpType_OP_TYPE_UNKNOWN:
-		err = ErrUnknownOpType
-	case pb.OpType_OP_TYPE_HEARTBEAT:
-		message = &pb.HeartbeatRsp{}
-	case pb.OpType_OP_TYPE_BROADCAST:
-		message = &pb.BroadcastRsp{}
-	case pb.OpType_OP_TYPE_QUERY:
-		message = &pb.QueryRsp{}
-	case pb.OpType_OP_TYPE_RENAME:
-		message = &pb.RenameRsp{}
-	case pb.OpType_OP_TYPE_PRIVATE_CHAT:
-		message = &pb.PrivateChatRsp{}
-	}
-	if err != nil {
-		return message, err
-	}
-	if message == nil {
-		return nil, ErrUnknownOpType
-	}
-	err = proto.Unmarshal(bytes, message)
-	return message, err
-}
-
-func pushUnmarshal(head *pb.HeadPack, bytes []byte) (proto.Message, error) {
-	var message proto.Message = nil
-	var err error = nil
-	switch pb.PushType(head.Type) {
-	case pb.PushType_PUSH_TYPE_UNKNOWN:
-		err = ErrUnknownPushType
-	case pb.PushType_PUSH_TYPE_KICK:
-		message = &pb.KickPush{}
-	case pb.PushType_PUSH_TYPE_BROADCAST:
-		message = &pb.BroadcastPush{}
-	case pb.PushType_PUSH_TYPE_PRIVATE_CHAT:
-		message = &pb.PrivateChatPush{}
-	}
-	if err != nil {
-		return message, err
-	}
-	if message == nil {
-		return nil, ErrUnknownPushType
-	}
-	err = proto.Unmarshal(bytes, message)
-	return message, err
-}
-
-////////////////////
-
-func NewRequestHead(pid uint32, opType pb.OpType) *pb.HeadPack {
-	return &pb.HeadPack{
-		ProtoType: pb.ProtoType_PROTO_TYPE_REQUEST,
-		Pid:       pid,
-		Type:      uint32(opType),
-	}
-}
-
-func NewResponseHead(pid uint32, opType pb.OpType, code uint32) *pb.HeadPack {
-	return &pb.HeadPack{
-		ProtoType: pb.ProtoType_PROTO_TYPE_RESPONSE,
-		Pid:       pid,
-		Type:      uint32(opType),
-		Code:      code,
-	}
-}
-
-func NewPushHead(pushType pb.PushType) *pb.HeadPack {
-	return &pb.HeadPack{
-		ProtoType: pb.ProtoType_PROTO_TYPE_PUSH,
-		Type:      uint32(pushType),
-	}
+	return head, bodyBytes, err
 }

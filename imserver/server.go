@@ -3,8 +3,8 @@ package imserver
 import (
 	"errors"
 	"fmt"
+	"imsystem/pack"
 	"imsystem/pb"
-	"imsystem/protopack"
 	"net"
 	"strconv"
 	"sync"
@@ -58,7 +58,7 @@ func (s *Server) Start() {
 }
 
 func (s *Server) Broadcast(body *pb.BroadcastPush) {
-	bytes, err := protopack.Encode(protopack.NewPushHead(pb.PushType_PUSH_TYPE_BROADCAST), body)
+	bytes, err := pack.Encode(pack.NewPushHead(pb.PushType_PUSH_TYPE_BROADCAST), body)
 	if err != nil {
 		fmt.Println("broadcast error:", err)
 	}
@@ -107,7 +107,7 @@ func (s *Server) PrivateChat(user *User, toUserName string, content string) erro
 	if !ok {
 		return errors.New("查无此人:" + toUserName)
 	}
-	bytes, err := protopack.Encode(protopack.NewPushHead(pb.PushType_PUSH_TYPE_PRIVATE_CHAT), &pb.PrivateChatPush{
+	bytes, err := pack.Encode(pack.NewPushHead(pb.PushType_PUSH_TYPE_PRIVATE_CHAT), &pb.PrivateChatPush{
 		User:    user.String(),
 		Content: content,
 	})

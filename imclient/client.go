@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"google.golang.org/protobuf/proto"
 	"imsystem/pb"
+	"imsystem/pack"
 	"imsystem/protopack"
 	"net"
 	"strconv"
@@ -93,7 +94,7 @@ func (c *Client) IsOnline() bool {
 }
 
 func (c *Client) SendMessage(head *pb.HeadPack, body proto.Message) {
-	bytes, err := protopack.Encode(head, body)
+	bytes, err := pack.Encode(head, body)
 	if err != nil {
 		fmt.Println("send error:", err)
 	}
@@ -108,13 +109,13 @@ func (c *Client) SendMessage(head *pb.HeadPack, body proto.Message) {
 }
 
 func (c *Client) NewRequestHead(opType pb.OpType) *pb.HeadPack {
-	return protopack.NewRequestHead(c.getPid(), opType)
+	return pack.NewRequestHead(c.getPid(), opType)
 }
 
 func (c *Client) readRemote() {
 	defer c.closeWait.Done()
 	for {
-		head, body, err := protopack.Decode(c.conn)
+		head, body, err := pack.Decode(c.conn)
 		if errors.Is(err, protopack.ErrProtoPack) {
 			fmt.Println("conn read error:", err, c)
 			continue
