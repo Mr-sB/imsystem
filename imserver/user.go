@@ -23,6 +23,7 @@ type User struct {
 	serverInterface ServerInterface
 	pid             uint32
 	requestRouter   map[pb.OpType]func(*pb.HeadPack, proto.Message)
+	packer          *pack.Packer
 }
 
 func NewUser(conn net.Conn, serverInterface ServerInterface) *User {
@@ -36,6 +37,7 @@ func NewUser(conn net.Conn, serverInterface ServerInterface) *User {
 		closeChan:       make(chan struct{}),
 		online:          0,
 		serverInterface: serverInterface,
+		packer:          pack.NewPacker(),
 	}
 	user.initRouter()
 	return user
@@ -109,7 +111,7 @@ func (u *User) offline() {
 
 func (u *User) readRemote() {
 	for {
-		head, body, err := pack.Decode(u.conn)
+		head, body, err := u.packer.Decode(u.conn)
 		if errors.Is(err, protopack.ErrProtoPack) {
 			fmt.Println("conn read error:", err, u)
 			continue
@@ -143,7 +145,7 @@ func (u *User) listenTimeout() {
 			}
 			//超时被踢
 			//Close conn之后Read会error，从而触发offline
-			bytes, _ := pack.Encode(pack.NewPushHead(pb.PushType_PUSH_TYPE_KICK), &pb.KickPush{})
+			bytes, _ := u.packer.Encode(pack.NewPushHead(pb.PushType_PUSH_TYPE_KICK), &pb.KickPush{})
 			u.SendMessage(bytes)
 			u.conn.Close()
 		}
@@ -195,7 +197,7 @@ func (u *User) getPid() uint32 {
 
 //Router
 func (u *User) reqHeartbeat(reqHead *pb.HeadPack, reqBody proto.Message) {
-	bytes, _ := pack.Encode(
+	bytes, _ := u.packer.Encode(
 		pack.NewResponseHead(reqHead.Pid, pb.OpType_OP_TYPE_HEARTBEAT, pb.ResponseCodeSuccess),
 		&pb.HeartbeatRsp{})
 	//response
@@ -207,7 +209,7 @@ func (u *User) reqBroadcast(reqHead *pb.HeadPack, reqBody proto.Message) {
 	if !ok {
 		return
 	}
-	bytes, _ := pack.Encode(
+	bytes, _ := u.packer.Encode(
 		pack.NewResponseHead(reqHead.Pid, pb.OpType_OP_TYPE_BROADCAST, pb.ResponseCodeSuccess),
 		&pb.BroadcastRsp{})
 	//response
@@ -220,7 +222,7 @@ func (u *User) reqBroadcast(reqHead *pb.HeadPack, reqBody proto.Message) {
 }
 
 func (u *User) reqQuery(reqHead *pb.HeadPack, reqBody proto.Message) {
-	bytes, _ := pack.Encode(
+	bytes, _ := u.packer.Encode(
 		pack.NewResponseHead(reqHead.Pid, pb.OpType_OP_TYPE_QUERY, pb.ResponseCodeSuccess),
 		&pb.QueryRsp{
 			Users: u.serverInterface.Query(),
@@ -244,7 +246,7 @@ func (u *User) reqRename(reqHead *pb.HeadPack, reqBody proto.Message) {
 	} else {
 		head = pack.NewResponseHead(reqHead.Pid, pb.OpType_OP_TYPE_RENAME, pb.RenameError)
 	}
-	bytes, _ := pack.Encode(head, body)
+	bytes, _ := u.packer.Encode(head, body)
 	//response
 	u.SendMessage(bytes)
 }
@@ -262,7 +264,7 @@ func (u *User) reqPrivateChat(reqHead *pb.HeadPack, reqBody proto.Message) {
 	} else {
 		head = pack.NewResponseHead(reqHead.Pid, pb.OpType_OP_TYPE_PRIVATE_CHAT, pb.ChatUserError)
 	}
-	bytes, _ := pack.Encode(head, body)
+	bytes, _ := u.packer.Encode(head, body)
 	//response
 	u.SendMessage(bytes)
 }

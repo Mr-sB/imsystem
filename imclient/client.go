@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"google.golang.org/protobuf/proto"
-	"imsystem/pb"
 	"imsystem/pack"
+	"imsystem/pb"
 	"imsystem/protopack"
 	"net"
 	"strconv"
@@ -31,6 +31,7 @@ type Client struct {
 	closeWait      sync.WaitGroup
 	responseRouter map[pb.OpType]func(*pb.HeadPack, proto.Message)
 	pushRouter     map[pb.PushType]func(proto.Message)
+	packer         *pack.Packer
 }
 
 func (c *Client) String() string {
@@ -39,9 +40,10 @@ func (c *Client) String() string {
 
 func NewClient(ip string, port int) *Client {
 	return &Client{
-		Ip:             ip,
-		Port:           port,
-		online:         0,
+		Ip:     ip,
+		Port:   port,
+		online: 0,
+		packer: pack.NewPacker(),
 	}
 }
 
@@ -94,7 +96,7 @@ func (c *Client) IsOnline() bool {
 }
 
 func (c *Client) SendMessage(head *pb.HeadPack, body proto.Message) {
-	bytes, err := pack.Encode(head, body)
+	bytes, err := c.packer.Encode(head, body)
 	if err != nil {
 		fmt.Println("send error:", err)
 	}
@@ -115,7 +117,7 @@ func (c *Client) NewRequestHead(opType pb.OpType) *pb.HeadPack {
 func (c *Client) readRemote() {
 	defer c.closeWait.Done()
 	for {
-		head, body, err := pack.Decode(c.conn)
+		head, body, err := c.packer.Decode(c.conn)
 		if errors.Is(err, protopack.ErrProtoPack) {
 			fmt.Println("conn read error:", err, c)
 			continue

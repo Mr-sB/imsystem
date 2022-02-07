@@ -24,6 +24,7 @@ type Server struct {
 	onlineUsers   map[string]*User
 	userLock      sync.RWMutex
 	broadcastChan chan []byte
+	packer        *pack.Packer
 }
 
 func NewServer(ip string, port int) *Server {
@@ -32,6 +33,7 @@ func NewServer(ip string, port int) *Server {
 		Port:          port,
 		onlineUsers:   make(map[string]*User),
 		broadcastChan: make(chan []byte),
+		packer:        pack.NewPacker(),
 	}
 }
 
@@ -58,7 +60,7 @@ func (s *Server) Start() {
 }
 
 func (s *Server) Broadcast(body *pb.BroadcastPush) {
-	bytes, err := pack.Encode(pack.NewPushHead(pb.PushType_PUSH_TYPE_BROADCAST), body)
+	bytes, err := s.packer.Encode(pack.NewPushHead(pb.PushType_PUSH_TYPE_BROADCAST), body)
 	if err != nil {
 		fmt.Println("broadcast error:", err)
 	}
@@ -107,7 +109,7 @@ func (s *Server) PrivateChat(user *User, toUserName string, content string) erro
 	if !ok {
 		return errors.New("查无此人:" + toUserName)
 	}
-	bytes, err := pack.Encode(pack.NewPushHead(pb.PushType_PUSH_TYPE_PRIVATE_CHAT), &pb.PrivateChatPush{
+	bytes, err := s.packer.Encode(pack.NewPushHead(pb.PushType_PUSH_TYPE_PRIVATE_CHAT), &pb.PrivateChatPush{
 		User:    user.String(),
 		Content: content,
 	})

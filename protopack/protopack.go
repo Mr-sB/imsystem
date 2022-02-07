@@ -3,6 +3,7 @@ package protopack
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"google.golang.org/protobuf/proto"
 	"imsystem/pb"
 	"io"
@@ -14,10 +15,23 @@ const (
 )
 
 var (
-	ErrProtoPack        = errors.New("proto pack error")
+	ErrProtoPack      = errors.New("proto pack error")
+	ErrNilBodyCreator = fmt.Errorf("unknown op type: %w", ErrProtoPack)
 )
 
-func Encode(head *pb.HeadPack, body proto.Message) ([]byte, error) {
+type ProtoPacker struct {
+	bodyCreator func(*pb.HeadPack) (proto.Message, error)
+	buffer      []byte
+}
+
+func NewProtoPacker(creator func(*pb.HeadPack) (proto.Message, error)) *ProtoPacker {
+	return &ProtoPacker{
+		bodyCreator: creator,
+		buffer:      make([]byte, 1024),
+	}
+}
+
+func (p *ProtoPacker) Encode(head *pb.HeadPack, body proto.Message) ([]byte, error) {
 	headBytes, err := proto.Marshal(head)
 	if err != nil {
 		return headBytes, err
@@ -43,22 +57,26 @@ func Encode(head *pb.HeadPack, body proto.Message) ([]byte, error) {
 	return message, nil
 }
 
-func Decode(reader io.Reader) (*pb.HeadPack, []byte, error) {
+func (p *ProtoPacker) Decode(reader io.Reader) (*pb.HeadPack, proto.Message, error) {
 	//读取消息长度
-	bytes := make([]byte, TotalLen)
-	_, err := io.ReadFull(reader, bytes)
+	p.buffer = ensures(p.buffer, TotalLen)
+	totalLenBytes := p.buffer[:TotalLen]
+	_, err := io.ReadFull(reader, totalLenBytes)
 	if err != nil {
 		return nil, nil, err
 	}
-	totalLen := binary.LittleEndian.Uint32(bytes)
+	totalLen := binary.LittleEndian.Uint32(totalLenBytes)
 	//读取消息头部长度
-	_, err = io.ReadFull(reader, bytes[:HeadLen])
+	p.buffer = ensures(p.buffer, TotalLen+HeadLen)
+	headLenBytes := p.buffer[TotalLen : TotalLen+HeadLen]
+	_, err = io.ReadFull(reader, headLenBytes)
 	if err != nil {
 		return nil, nil, err
 	}
-	headLen := binary.LittleEndian.Uint16(bytes)
+	headLen := binary.LittleEndian.Uint16(headLenBytes)
 	//读取头部
-	headBytes := make([]byte, headLen)
+	p.buffer = ensures(p.buffer, TotalLen+HeadLen+int(headLen))
+	headBytes := p.buffer[TotalLen+HeadLen : TotalLen+HeadLen+headLen]
 	_, err = io.ReadFull(reader, headBytes)
 	if err != nil {
 		return nil, nil, err
@@ -69,7 +87,36 @@ func Decode(reader io.Reader) (*pb.HeadPack, []byte, error) {
 		return head, nil, err
 	}
 	//读取消息体
-	bodyBytes := make([]byte, totalLen-TotalLen-HeadLen-uint32(headLen))
+	p.buffer = ensures(p.buffer, int(totalLen))
+	bodyBytes := p.buffer[TotalLen+HeadLen+headLen : totalLen]
 	_, err = io.ReadFull(reader, bodyBytes)
-	return head, bodyBytes, err
+	if err != nil {
+		return head, nil, err
+	}
+	if p.bodyCreator == nil {
+		return head, nil, ErrNilBodyCreator
+	}
+	body, err := p.bodyCreator(head)
+	if err != nil {
+		return head, nil, err
+	}
+	err = proto.Unmarshal(bodyBytes, body)
+	return head, body, err
+}
+
+func ensures(bytes []byte, length int) []byte {
+	curLen := len(bytes)
+	if curLen >= length {
+		return bytes
+	}
+	twoTimesLen := 2 * curLen
+	var newSize int
+	if length < twoTimesLen {
+		newSize = twoTimesLen
+	} else {
+		newSize = length
+	}
+	newBytes := make([]byte, newSize)
+	copy(newBytes, bytes)
+	return newBytes
 }

@@ -5,7 +5,6 @@ import (
 	"google.golang.org/protobuf/proto"
 	"imsystem/pb"
 	"imsystem/protopack"
-	"io"
 )
 
 var (
@@ -13,10 +12,10 @@ var (
 	ErrUnknownOpType    = fmt.Errorf("unknown op type: %w", protopack.ErrProtoPack)
 	ErrUnknownPushType  = fmt.Errorf("unknown push type: %w", protopack.ErrProtoPack)
 
-	unmarshalBodyRouter = map[pb.ProtoType]func(*pb.HeadPack, []byte) (proto.Message, error){
-		pb.ProtoType_PROTO_TYPE_REQUEST:  unmarshalRequest,
-		pb.ProtoType_PROTO_TYPE_RESPONSE: unmarshalResponse,
-		pb.ProtoType_PROTO_TYPE_PUSH:     unmarshalPush,
+	bodyCreatorRouter = map[pb.ProtoType]func(*pb.HeadPack) (proto.Message, error){
+		pb.ProtoType_PROTO_TYPE_REQUEST:  createRequest,
+		pb.ProtoType_PROTO_TYPE_RESPONSE: createResponse,
+		pb.ProtoType_PROTO_TYPE_PUSH:     createPush,
 	}
 	reqMessageCreator = map[pb.OpType]func() proto.Message{
 		pb.OpType_OP_TYPE_HEARTBEAT:    func() proto.Message { return new(pb.HeartbeatReq) },
@@ -39,56 +38,48 @@ var (
 	}
 )
 
-func Encode(head *pb.HeadPack, body proto.Message) ([]byte, error) {
-	return protopack.Encode(head, body)
+type Packer struct {
+	*protopack.ProtoPacker
 }
 
-func Decode(reader io.Reader) (*pb.HeadPack, proto.Message, error) {
-	head, bodyBytes, err := protopack.Decode(reader)
-	if err != nil {
-		return head, nil, err
+func NewPacker() *Packer {
+	return &Packer{
+		ProtoPacker: protopack.NewProtoPacker(bodyCreator),
 	}
-	//解析消息体
-	var body proto.Message = nil
-	router, ok := unmarshalBodyRouter[head.ProtoType]
-	if !ok {
-		err = ErrUnknownProtoType
-	} else {
-		body, err = router(head, bodyBytes)
-	}
-	return head, body, err
 }
 
 ////////////////////
 
-func unmarshalRequest(head *pb.HeadPack, bytes []byte) (proto.Message, error) {
+func bodyCreator(head *pb.HeadPack) (proto.Message, error) {
+	router, ok := bodyCreatorRouter[head.ProtoType]
+	if !ok {
+		return nil, ErrUnknownProtoType
+	}
+	return router(head)
+}
+
+func createRequest(head *pb.HeadPack) (proto.Message, error) {
 	creator, ok := reqMessageCreator[pb.OpType(head.Type)]
 	if !ok {
 		return nil, ErrUnknownOpType
 	}
-	message := creator()
-	err := proto.Unmarshal(bytes, message)
-	return message, err
+	return creator(), nil
 }
 
-func unmarshalResponse(head *pb.HeadPack, bytes []byte) (proto.Message, error) {
+func createResponse(head *pb.HeadPack) (proto.Message, error) {
 	creator, ok := rspMessageCreator[pb.OpType(head.Type)]
 	if !ok {
 		return nil, ErrUnknownOpType
 	}
-	message := creator()
-	err := proto.Unmarshal(bytes, message)
-	return message, err
+	return creator(), nil
 }
 
-func unmarshalPush(head *pb.HeadPack, bytes []byte) (proto.Message, error) {
+func createPush(head *pb.HeadPack) (proto.Message, error) {
 	creator, ok := pushMessageCreator[pb.PushType(head.Type)]
 	if !ok {
-		return nil, ErrUnknownOpType
+		return nil, ErrUnknownPushType
 	}
-	message := creator()
-	err := proto.Unmarshal(bytes, message)
-	return message, err
+	return creator(), nil
 }
 
 ////////////////////
