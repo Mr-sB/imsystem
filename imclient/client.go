@@ -95,21 +95,18 @@ func (c *Client) Reconnect() {
 	fmt.Println("Reconnect result:", success, c)
 }
 
-func (c *Client) IsOnline() bool {
-	c.onlineLock.RLock()
-	defer c.onlineLock.RUnlock()
-	return c.online
-}
-
 func (c *Client) SendMessage(head *pb.HeadPack, body proto.Message) {
 	bytes, err := c.packer.Encode(head, body)
 	if err != nil {
 		fmt.Println("send error:", err)
 	}
-	if !c.IsOnline() {
+	c.onlineLock.RLock()
+	if !c.online{
 		fmt.Println("send error: client is Disconnect!")
+		c.onlineLock.RUnlock()
 		return
 	}
+	c.onlineLock.RUnlock()
 	_, err = c.conn.Write(bytes)
 	if err != nil {
 		fmt.Println("send error:", err)
