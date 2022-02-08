@@ -25,7 +25,8 @@ type Client struct {
 	Name           string
 	conn           net.Conn
 	closeChan      chan struct{}
-	online         uint32 //0:false else:true
+	online         bool
+	onlineLock     sync.RWMutex
 	pid            uint32
 	hbTimeoutCount uint32
 	closeWait      sync.WaitGroup
@@ -42,7 +43,7 @@ func NewClient(ip string, port int) *Client {
 	return &Client{
 		Ip:     ip,
 		Port:   port,
-		online: 0,
+		online: false,
 		packer: pack.NewPacker(),
 	}
 }
@@ -73,10 +74,13 @@ func (c *Client) Connect() bool {
 }
 
 func (c *Client) Disconnect() {
-	if !c.IsOnline() {
+	c.onlineLock.Lock()
+	if !c.online{
+		c.onlineLock.Unlock()
 		return
 	}
-	c.setOnline(false)
+	c.online = false
+	c.onlineLock.Unlock()
 
 	//让所有的go程结束
 	close(c.closeChan)
@@ -88,11 +92,13 @@ func (c *Client) Reconnect() {
 	fmt.Println("Start reconnect.", c)
 	c.Disconnect()
 	success := c.Connect()
-	fmt.Println("Reconnect result:", success, c.IsOnline(), c)
+	fmt.Println("Reconnect result:", success, c)
 }
 
 func (c *Client) IsOnline() bool {
-	return atomic.LoadUint32(&c.online) != 0
+	c.onlineLock.RLock()
+	defer c.onlineLock.RUnlock()
+	return c.online
 }
 
 func (c *Client) SendMessage(head *pb.HeadPack, body proto.Message) {
@@ -166,13 +172,9 @@ func (c *Client) keepConnection() {
 }
 
 func (c *Client) setOnline(online bool) {
-	var value uint32
-	if online {
-		value = 1
-	} else {
-		value = 0
-	}
-	atomic.StoreUint32(&c.online, value)
+	c.onlineLock.Lock()
+	c.online = online
+	c.onlineLock.Unlock()
 }
 
 func (c *Client) isChanClosed() bool {

@@ -8,6 +8,7 @@ import (
 	"imsystem/pb"
 	"imsystem/protopack"
 	"net"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -19,7 +20,8 @@ type User struct {
 	messageChan     chan []byte
 	aliveChan       chan struct{}
 	closeChan       chan struct{}
-	online          uint32
+	online          bool
+	onlineLock      sync.Mutex
 	serverInterface ServerInterface
 	pid             uint32
 	requestRouter   map[pb.OpType]func(*pb.HeadPack, proto.Message)
@@ -35,7 +37,7 @@ func NewUser(conn net.Conn, serverInterface ServerInterface) *User {
 		messageChan:     make(chan []byte),
 		aliveChan:       make(chan struct{}),
 		closeChan:       make(chan struct{}),
-		online:          0,
+		online:          false,
 		serverInterface: serverInterface,
 		packer:          pack.NewPacker(),
 	}
@@ -57,7 +59,9 @@ func (u *User) String() string {
 }
 
 func (u *User) Online() {
-	u.setOnline(true)
+	u.onlineLock.Lock()
+	u.online = true
+	u.onlineLock.Unlock()
 	go u.listenMessage()
 
 	//监听用户消息
@@ -82,26 +86,15 @@ func (u *User) SendMessage(message []byte) {
 	}
 }
 
-func (u *User) IsOnline() bool {
-	return atomic.LoadUint32(&u.online) != 0
-}
-
-func (u *User) setOnline(online bool) {
-	var value uint32
-	if online {
-		value = 1
-	} else {
-		value = 0
-	}
-	atomic.StoreUint32(&u.online, value)
-}
-
 func (u *User) offline() {
 	//避免重复offline
-	if !u.IsOnline() {
+	u.onlineLock.Lock()
+	if !u.online{
+		u.onlineLock.Unlock()
 		return
 	}
-	u.setOnline(false)
+	u.online = false
+	u.onlineLock.Unlock()
 
 	//让所有的go程结束
 	close(u.closeChan)
