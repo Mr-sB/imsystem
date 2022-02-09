@@ -237,7 +237,7 @@ func (u *User) reqRename(reqHead *pb.HeadPack, reqBody proto.Message) {
 		head = pack.NewResponseHead(reqHead.Pid, pb.OpType_OP_TYPE_RENAME, pb.ResponseCodeSuccess)
 		body.NewName = request.NewName
 	} else {
-		head = pack.NewResponseHead(reqHead.Pid, pb.OpType_OP_TYPE_RENAME, pb.RenameError)
+		head = pack.NewResponseHead(reqHead.Pid, pb.OpType_OP_TYPE_RENAME, pb.ResponseCodeRenameError)
 	}
 	bytes, _ := u.packer.Encode(head, body)
 	//response
@@ -255,7 +255,7 @@ func (u *User) reqPrivateChat(reqHead *pb.HeadPack, reqBody proto.Message) {
 	if err == nil {
 		head = pack.NewResponseHead(reqHead.Pid, pb.OpType_OP_TYPE_PRIVATE_CHAT, pb.ResponseCodeSuccess)
 	} else {
-		head = pack.NewResponseHead(reqHead.Pid, pb.OpType_OP_TYPE_PRIVATE_CHAT, pb.ChatUserError)
+		head = pack.NewResponseHead(reqHead.Pid, pb.OpType_OP_TYPE_PRIVATE_CHAT, pb.ResponseCodeChatUserError)
 	}
 	bytes, _ := u.packer.Encode(head, body)
 	//response

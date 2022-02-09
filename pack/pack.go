@@ -92,12 +92,12 @@ func NewRequestHead(pid uint32, opType pb.OpType) *pb.HeadPack {
 	}
 }
 
-func NewResponseHead(pid uint32, opType pb.OpType, code uint32) *pb.HeadPack {
+func NewResponseHead(pid uint32, opType pb.OpType, code pb.ResponseCode) *pb.HeadPack {
 	return &pb.HeadPack{
 		ProtoType: pb.ProtoType_PROTO_TYPE_RESPONSE,
 		Pid:       pid,
 		Type:      uint32(opType),
-		Code:      code,
+		Code:      uint32(code),
 	}
 }
 

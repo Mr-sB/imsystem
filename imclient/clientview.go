@@ -110,7 +110,7 @@ func (c *ClientView) SendPrivateChat(body *pb.PrivateChatReq) {
 
 //Response router
 func rspQuery(head *pb.HeadPack, body proto.Message) {
-	if head.Code != pb.ResponseCodeSuccess {
+	if pb.ResponseCode(head.Code) != pb.ResponseCodeSuccess {
 		return
 	}
 	response, ok := body.(*pb.QueryRsp)
@@ -121,7 +121,7 @@ func rspQuery(head *pb.HeadPack, body proto.Message) {
 }
 
 func rspRename(head *pb.HeadPack, body proto.Message) {
-	if head.Code != pb.ResponseCodeSuccess {
+	if pb.ResponseCode(head.Code) != pb.ResponseCodeSuccess {
 		return
 	}
 	response, ok := body.(*pb.RenameRsp)

@@ -197,7 +197,7 @@ func (c *Client) handler(head *pb.HeadPack, body proto.Message) {
 }
 
 func (c *Client) responseHandler(head *pb.HeadPack, body proto.Message) {
-	if head.Code != pb.ResponseCodeSuccess {
+	if pb.ResponseCode(head.Code) != pb.ResponseCodeSuccess {
 		fmt.Println("request failed:", head)
 	}
 	opType := pb.OpType(head.Type)
